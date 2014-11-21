@@ -29,12 +29,15 @@
     <entity name="MS_TableOperationErrors" syncable="YES">
         <attribute name="id" optional="YES" attributeType="String" syncable="YES"/>
         <attribute name="properties" optional="YES" attributeType="Binary" syncable="YES"/>
+        <attribute name="tableKind" optional="YES" attributeType="Integer 16" defaultValueString="0" syncable="YES"/>
+        <relationship name="operationId" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="MS_TableOperations" syncable="YES"/>
     </entity>
     <entity name="MS_TableOperations" syncable="YES">
         <attribute name="id" optional="YES" attributeType="Integer 64" defaultValueString="0" syncable="YES"/>
         <attribute name="itemId" optional="YES" attributeType="String" syncable="YES"/>
         <attribute name="properties" optional="YES" attributeType="Binary" syncable="YES"/>
         <attribute name="table" optional="YES" attributeType="String" syncable="YES"/>
+        <attribute name="tableKind" optional="YES" attributeType="Integer 16" defaultValueString="0" syncable="YES"/>
     </entity>
     <entity name="TodoItem" syncable="YES">
         <attribute name="id" optional="YES" attributeType="String" syncable="YES"/>
@@ -47,12 +50,11 @@
         <attribute name="text" optional="YES" attributeType="String" syncable="YES"/>
     </entity>
     <elements>
-        <element name="ColumnTypes" positionX="135" positionY="-28" width="128" height="208"/>
-        <element name="ManySystemColumns" positionX="-54" positionY="-81" width="128" height="148"/>
-        <element name="MS_TableOperationErrors" positionX="259" positionY="-162" width="128" height="75"/>
-        <element name="MS_TableOperations" positionX="-207" positionY="-0" width="128" height="103"/>
-        <element name="TodoItem" positionX="-216" positionY="-162" width="128" height="103"/>
-        <element name="TodoNoVersion" positionX="-54" positionY="-180" width="128" height="73"/>
-        <element name="MS_TableConfig" positionX="-54" positionY="81" width="128" height="73"/>
+        <element name="ColumnTypes" positionX="-54" positionY="54" width="128" height="208"/>
+        <element name="ManySystemColumns" positionX="-54" positionY="27" width="128" height="148"/>
+        <element name="MS_TableOperationErrors" positionX="-45" positionY="27" width="128" height="103"/>
+        <element name="MS_TableOperations" positionX="-54" positionY="18" width="128" height="118"/>
+        <element name="TodoItem" positionX="-63" positionY="-18" width="128" height="103"/>
+        <element name="TodoNoVersion" positionX="-45" positionY="18" width="128" height="73"/>
     </elements>
 </model>

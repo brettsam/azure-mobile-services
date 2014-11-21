@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.WindowsAzure.MobileServices.Query;
 using Microsoft.WindowsAzure.MobileServices.Test;
 using Microsoft.WindowsAzure.MobileServices.TestFramework;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
@@ -23,6 +24,8 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
         [AsyncTestMethod]
         public async Task InitializeAsync_InitializesTheStore()
         {
+            TestUtilities.DropTestTable(TestDbName, TestTable);
+
             var store = new MobileServiceSQLiteStore(TestDbName);
             store.DefineTable(TestTable, new JObject()
             {
@@ -86,6 +89,44 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
         public void ReadAsync_Throws_WhenStoreIsNotInitialized()
         {
             TestStoreThrowOnUninitialized(store => store.ReadAsync(MobileServiceTableQueryDescription.Parse("abc", "")));
+        }
+
+        [AsyncTestMethod]
+        public async Task UpsertAsync_ThenReadAsync_AllTypes()
+        {
+            TestUtilities.DropTestTable(TestDbName, TestTable);
+
+            // first create a table called todo
+            using (MobileServiceSQLiteStore store = new MobileServiceSQLiteStore(TestDbName))
+            {
+                store.DefineTable(TestTable, JObjectTypes.GetObjectWithAllTypes());
+
+                await store.InitializeAsync();
+
+                var upserted = new JObject()
+                {
+                    { "id", "xyz" },
+                    { "Object", new JObject() { {"id", "abc"} }},
+                    { "Array", new JArray() { new JObject(){{"id", 3}} } },
+                    { "Integer", 123L },
+                    { "Float", 12.5m },
+                    { "String", "def" },
+                    { "Boolean", true },
+                    { "Date", new DateTime(2003, 5, 6, 4, 5, 1, DateTimeKind.Utc) },
+                    { "Bytes", new byte[] { 1, 2, 3} },
+                    { "Guid", new Guid("AB3EB1AB-53CD-4780-928B-A7E1CB7A927C") },
+                    { "TimeSpan", new TimeSpan(1234) }
+                };
+                await store.UpsertAsync(TestTable, new[] { upserted }, false);
+
+                var query = new MobileServiceTableQueryDescription(TestTable);
+                var items = await store.ReadAsync(query) as JArray;
+                Assert.IsNotNull(items);
+                Assert.AreEqual(items.Count, 1);
+
+                var lookedup = items.First as JObject;
+                Assert.AreEqual(upserted.ToString(Formatting.None), lookedup.ToString(Formatting.None));
+            }
         }
 
         [AsyncTestMethod]
@@ -176,12 +217,14 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
         [TestMethod]
         public void UpsertAsync_Throws_WhenStoreIsNotInitialized()
         {
-            TestStoreThrowOnUninitialized(store => store.UpsertAsync("asdf", new[] { new JObject() }, fromServer: false));
+            TestStoreThrowOnUninitialized(store => store.UpsertAsync("asdf", new[] { new JObject() }, ignoreMissingColumns: false));
         }
 
         [AsyncTestMethod]
         public async Task UpsertAsync_Throws_WhenColumnInItemIsNotDefinedAndItIsLocal()
         {
+            TestUtilities.DropTestTable(TestDbName, TestTable);
+
             using (var store = new MobileServiceSQLiteStore(TestDbName))
             {
                 store.DefineTable(TestTable, new JObject()
@@ -192,7 +235,7 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
 
                 await store.InitializeAsync();
 
-                var ex = await ThrowsAsync<InvalidOperationException>(() => store.UpsertAsync(TestTable, new[] { new JObject() { { "notDefined", "okok" } } }, fromServer: false));
+                var ex = await ThrowsAsync<InvalidOperationException>(() => store.UpsertAsync(TestTable, new[] { new JObject() { { "notDefined", "okok" } } }, ignoreMissingColumns: false));
 
                 Assert.AreEqual(ex.Message, "Column with name 'notDefined' is not defined on the local table 'todo'.");
             }
@@ -201,6 +244,8 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
         [AsyncTestMethod]
         public async Task UpsertAsync_DoesNotThrow_WhenColumnInItemIsNotDefinedAndItIsFromServer()
         {
+            TestUtilities.DropTestTable(TestDbName, TestTable);
+
             using (var store = new MobileServiceSQLiteStore(TestDbName))
             {
                 store.DefineTable(TestTable, new JObject()
@@ -211,13 +256,20 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
 
                 await store.InitializeAsync();
 
-                await store.UpsertAsync(TestTable, new[] { new JObject() { { "notDefined", "okok" }, { "dob", DateTime.UtcNow } } }, fromServer: true);
+                await store.UpsertAsync(TestTable, new[] { new JObject() 
+                { 
+                    { "id", "abc" },
+                    { "notDefined", "okok" }, 
+                    { "dob", DateTime.UtcNow } 
+                } }, ignoreMissingColumns: true);
             }
         }
 
         [AsyncTestMethod]
         public async Task UpsertAsync_DoesNotThrow_WhenItemIsEmpty()
         {
+            TestUtilities.DropTestTable(TestDbName, TestTable);
+
             using (var store = new MobileServiceSQLiteStore(TestDbName))
             {
                 store.DefineTable(TestTable, new JObject()
@@ -228,8 +280,8 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
 
                 await store.InitializeAsync();
 
-                await store.UpsertAsync(TestTable, new[] { new JObject() }, fromServer: true);
-                await store.UpsertAsync(TestTable, new[] { new JObject() }, fromServer: false);
+                await store.UpsertAsync(TestTable, new[] { new JObject() }, ignoreMissingColumns: true);
+                await store.UpsertAsync(TestTable, new[] { new JObject() }, ignoreMissingColumns: false);
             }
         }
 
@@ -266,7 +318,7 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
                     { "friends", null },  
                     { "__version", null }
                 };
-                await store.UpsertAsync(TestTable, new[] { inserted }, fromServer: false);
+                await store.UpsertAsync(TestTable, new[] { inserted }, ignoreMissingColumns: false);
 
                 JObject read = await store.LookupAsync(TestTable, "abc");
 
@@ -288,7 +340,7 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
                 { 
                     { "id", "abc" }, 
                     { "__createdAt", DateTime.Now } 
-                }}, fromServer: false);
+                }}, ignoreMissingColumns: false);
             }
             long count = TestUtilities.CountRows(TestDbName, TestTable);
             Assert.AreEqual(count, 1L);
@@ -308,14 +360,21 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
                 await store.UpsertAsync(TestTable, new[]{new JObject() 
                 { 
                     { "id", "abc" }, 
+                    { "text", "xyz" },
                     { "__createdAt", DateTime.Now } 
-                }}, fromServer: false);
+                }}, ignoreMissingColumns: false);
 
                 await store.UpsertAsync(TestTable, new[]{new JObject() 
                 { 
                     { "id", "abc" }, 
                     { "__createdAt", new DateTime(200,1,1) } 
-                }}, fromServer: false);
+                }}, ignoreMissingColumns: false);
+
+                JObject result = await store.LookupAsync(TestTable, "abc");
+
+                Assert.AreEqual(result.Value<string>("id"), "abc");
+                Assert.AreEqual(result.Value<string>("text"), "xyz");
+                Assert.AreEqual(result.Value<string>("__createdAt"), "01/01/0200 00:00:00");
             }
             long count = TestUtilities.CountRows(TestDbName, TestTable);
             Assert.AreEqual(count, 1L);
@@ -351,7 +410,7 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
                 var item2 = new JObject(template);
                 item1["id"] = 2;
 
-                InvalidOperationException ex = await AssertEx.Throws<InvalidOperationException>(() => store.UpsertAsync(TestTable, new[] { item1, item2 }, fromServer: false));
+                InvalidOperationException ex = await AssertEx.Throws<InvalidOperationException>(() => store.UpsertAsync(TestTable, new[] { item1, item2 }, ignoreMissingColumns: false));
 
                 Assert.AreEqual("The number of fields per entity in an upsert operation is limited to 800.", ex.Message);
             }
@@ -392,7 +451,7 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
                                               .ToArray();
 
                 //Insert the items
-                await store.UpsertAsync(TestTable, itemsToInsert, fromServer: false);
+                await store.UpsertAsync(TestTable, itemsToInsert, ignoreMissingColumns: false);
 
                 JArray records = (JArray)await store.ReadAsync(MobileServiceTableQueryDescription.Parse(TestTable, "$orderby=id"));
 
@@ -432,7 +491,7 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
                 await store.InitializeAsync();
 
                 // first add an item
-                await store.UpsertAsync(TestTable, new[] { originalItem }, fromServer: false);
+                await store.UpsertAsync(TestTable, new[] { originalItem }, ignoreMissingColumns: false);
 
                 // read the item back
                 JObject itemRead = await store.LookupAsync(TestTable, "abc");
@@ -444,7 +503,7 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
                 originalItem["double"] = 111.222d;
 
                 // upsert the item
-                await store.UpsertAsync(TestTable, new[] { originalItem }, fromServer: false);
+                await store.UpsertAsync(TestTable, new[] { originalItem }, ignoreMissingColumns: false);
 
                 // read the updated item
                 JObject updatedItem = await store.LookupAsync(TestTable, "abc");
@@ -493,8 +552,9 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
         {
             store.DefineTable(TestTable, new JObject()
             {
-                {"id", String.Empty },
-                {"__createdAt", DateTime.Now}
+                { "id", String.Empty },
+                { "text", String.Empty },
+                { "__createdAt", DateTime.Now }
             });
         }
     }

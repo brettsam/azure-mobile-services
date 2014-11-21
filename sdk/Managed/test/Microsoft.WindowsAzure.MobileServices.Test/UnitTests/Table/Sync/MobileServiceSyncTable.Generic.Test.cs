@@ -114,7 +114,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
             await service.SyncContext.PushAsync(); // push to clear the queue 
 
             // now pull
-            await table.PullAsync();
+            await table.PullAsync(null, null);
 
             Assert.AreEqual(store.TableMap[table.TableName].Count, 2); // 1 from remote and 1 from local
             Assert.AreEqual(hijack.Requests.Count, 3); // one for push and 2 for pull
@@ -148,7 +148,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
             var item = new StringIdType() { Id = "an id", String = "what?" };
             await table2.InsertAsync(item);
 
-            await table1.PullAsync();
+            await table1.PullAsync(null, null);
 
             Assert.AreEqual(store.TableMap[table1.TableName].Count, 2); // table should contain 2 pulled items
             Assert.AreEqual(hijack.Requests.Count, 3); // 1 for push and 2 for pull
@@ -175,7 +175,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
             Assert.AreEqual(store.TableMap[table1.TableName].Count, 1); // item is inserted
 
             // this should trigger a push
-            await table1.PullAsync();
+            await table1.PullAsync(null, null);
 
             Assert.AreEqual(hijack.Requests.Count, 3); // 1 for push and 2 for pull
             Assert.AreEqual(store.TableMap[table1.TableName].Count, 2); // table is populated
@@ -197,7 +197,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
             await table.InsertAsync(new JObject() { { "id", "abc" } });
 
             // this should trigger a push
-            await table.PullAsync();
+            await table.PullAsync(null, null);
 
             Assert.AreEqual(hijack.Requests[0].Headers.GetValues("X-ZUMO-FEATURES").First(), "TU,OL");
             Assert.AreEqual(hijack.Requests[1].Headers.GetValues("X-ZUMO-FEATURES").First(), "QS,OL");
@@ -221,7 +221,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
 
             Assert.IsFalse(store.TableMap.ContainsKey("stringId_test_table"));
 
-            await table.PullAsync();
+            await table.PullAsync(null, null);
 
             Assert.AreEqual(store.TableMap["stringId_test_table"].Count, 4);
             Assert.AreEqual(store.TableMap["stringId_test_table"]["abc"].Value<string>("String"), "Hey");
@@ -259,7 +259,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
             AssertEx.MatchUris(hijack.Requests, "http://www.test.com/tables/stringId_test_table?$filter=(__updatedAt ge datetimeoffset'1970-01-01T00:00:00.0000000%2B00:00')&$orderby=__updatedAt&$skip=0&$top=50&__includeDeleted=true&__systemproperties=__updatedAt%2C__version%2C__deleted",
                                                 "http://www.test.com/tables/stringId_test_table?$filter=(__updatedAt ge datetimeoffset'2001-02-04T00:00:00.0000000%2B00:00')&$orderby=__updatedAt&$skip=0&$top=50&__includeDeleted=true&__systemproperties=__updatedAt%2C__version%2C__deleted");
 
-            Assert.Equals(store.TableMap[MobileServiceLocalSystemTables.Config]["stringId_test_table_items_deltaToken"]["value"], "2001-02-04T00:00:00.0000000+00:00");
+            Assert.Equals(store.TableMap[MobileServiceLocalSystemTables.Config]["deltaToken|stringId_test_table|items"]["value"], "2001-02-04T00:00:00.0000000+00:00");
         }
 
         [AsyncTestMethod]
@@ -288,7 +288,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
             AssertEx.MatchUris(hijack.Requests, "http://www.test.com/tables/stringId_test_table?$filter=(__updatedAt ge datetimeoffset'1970-01-01T00:00:00.0000000%2B00:00')&$skip=0&$top=50&__includeDeleted=true&__systemproperties=__updatedAt%2C__version%2C__deleted",
                                                 "http://www.test.com/tables/stringId_test_table?$filter=(__updatedAt ge datetimeoffset'1970-01-01T00:00:00.0000000%2B00:00')&$skip=2&$top=50&__includeDeleted=true&__systemproperties=__updatedAt%2C__version%2C__deleted");
 
-            Assert.IsFalse(store.TableMap[MobileServiceLocalSystemTables.Config].ContainsKey("stringId_test_table_items_deltaToken"));
+            Assert.IsFalse(store.TableMap[MobileServiceLocalSystemTables.Config].ContainsKey("deltaToken|stringId_test_table|items"));
         }
 
         [AsyncTestMethod]
@@ -352,7 +352,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
 
                 Assert.IsFalse(store.TableMap.ContainsKey("stringId_test_table"));
 
-                await table.PullAsync(uri);
+                await table.PullAsync(null, uri);
 
                 Assert.AreEqual(store.TableMap["stringId_test_table"].Count, 2);
 
@@ -369,7 +369,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
             IMobileServiceClient service = new MobileServiceClient("http://www.test.com", "secret...", new TestHttpHandler());
             IMobileServiceSyncTable<ToDo> table = service.GetSyncTable<ToDo>();
 
-            var ex = await AssertEx.Throws<ArgumentException>(async () => await table.PullAsync("http://www.contoso.com/about?$filter=a eq b&$orderby=c"));
+            var ex = await AssertEx.Throws<ArgumentException>(async () => await table.PullAsync(null, "http://www.contoso.com/about?$filter=a eq b&$orderby=c"));
 
             Assert.AreEqual(ex.Message, "The query uri must be on the same host as the Mobile Service.");
         }
@@ -391,7 +391,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
 
             Assert.IsFalse(store.TableMap.ContainsKey("stringId_test_table"));
 
-            await table.PullAsync();
+            await table.PullAsync(null, null);
 
             Assert.AreEqual(store.TableMap["stringId_test_table"].Count, 4);
 
@@ -418,7 +418,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
 
             Assert.IsFalse(store.TableMap.ContainsKey("stringId_test_table"));
 
-            await table.PullAsync();
+            await table.PullAsync(null, null);
 
             Assert.AreEqual(store.TableMap["stringId_test_table"].Count, 2);
 
@@ -530,7 +530,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
             Assert.AreEqual(store.TableMap[table.TableName].Count, 1); // item is inserted
 
             // this should trigger a push
-            var ex = await ThrowsAsync<MobileServicePushFailedException>(() => table.PullAsync());
+            var ex = await ThrowsAsync<MobileServicePushFailedException>(() => table.PullAsync(null, null));
 
             Assert.AreEqual(ex.PushResult.Errors.Count(), 1);
             Assert.AreEqual(hijack.Requests.Count, 1); // 1 for push 
@@ -551,7 +551,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
         }
 
         [AsyncTestMethod]
-        public async Task PullAsync_Throws_WhenOrderByClauseIsSpecifiedWithQueryKey()
+        public async Task PullAsync_Throws_WhenOrderByClauseIsSpecifiedWithQueryId()
         {
             IMobileServiceClient service = new MobileServiceClient("http://www.test.com", "secret...");
             await service.SyncContext.InitializeAsync(new MobileServiceLocalStoreMock(), new MobileServiceSyncHandler());
@@ -610,7 +610,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
         }
 
         [AsyncTestMethod]
-        public async Task PullAsync_Throws_WhenTopOrSkipIsSpecifiedWithQueryKey()
+        public async Task PullAsync_Throws_WhenTopOrSkipIsSpecifiedWithQueryId()
         {
             IMobileServiceClient service = new MobileServiceClient("http://www.test.com", "secret...");
             await service.SyncContext.InitializeAsync(new MobileServiceLocalStoreMock(), new MobileServiceSyncHandler());
@@ -771,9 +771,9 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
             hijack.AddResponseContent(@"[]");
 
 
-            store.TableMap[MobileServiceLocalSystemTables.Config]["stringId_test_table_systemProperties"] = new JObject
+            store.TableMap[MobileServiceLocalSystemTables.Config]["systemProperties|stringId_test_table"] = new JObject
             {
-                { MobileServiceSystemColumns.Id, "stringId_test_table_systemProperties" },
+                { MobileServiceSystemColumns.Id, "systemProperties|stringId_test_table" },
                 { "value", "1" }
             };
 
@@ -799,7 +799,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
                                 { "__systemProperties", "createdAt" },
                                 { "param1", "val1" } 
                              },
-                             "The key '__systemProperties' is reserved and cannot be specified as a query parameter.");
+                             "The key '__systemproperties' is reserved and cannot be specified as a query parameter.");
         }
 
         [AsyncTestMethod]
@@ -814,7 +814,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
         }
 
         [AsyncTestMethod]
-        public async Task PullAsync_Throws_WhenQueryKeyIsInvalid()
+        public async Task PullAsync_Throws_WhenQueryIdIsInvalid()
         {
             IMobileServiceClient service = new MobileServiceClient("http://www.test.com", "secret...", new TestHttpHandler());
             await service.SyncContext.InitializeAsync(new MobileServiceLocalStoreMock(), new MobileServiceSyncHandler());
@@ -873,7 +873,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
         }
 
         [AsyncTestMethod]
-        public async Task PurgeAsync_ResetsDeltaToken_WhenQueryKeyIsSpecified()
+        public async Task PurgeAsync_ResetsDeltaToken_WhenQueryIdIsSpecified()
         {
             var hijack = new TestHttpHandler();
             hijack.AddResponseContent(@"[{""id"":""abc"",""String"":""Hey"", ""__updatedAt"": ""2001-02-03T00:00:00.0000000+00:00""},
@@ -899,15 +899,15 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
             Assert.AreEqual(store.TableMap["stringId_test_table"]["def"].Value<string>("String"), "How");
 
             // ensure delta token was updated
-            Assert.Equals(store.TableMap[MobileServiceLocalSystemTables.Config]["stringId_test_table_items_deltaToken"]["value"], "2001-02-04T00:00:00.0000000+00:00");
+            Assert.Equals(store.TableMap[MobileServiceLocalSystemTables.Config]["deltaToken|stringId_test_table|items"]["value"], "2001-02-04T00:00:00.0000000+00:00");
 
             // now purge and forget the delta token
-            await table.PurgeAsync("items", null, CancellationToken.None);
+            await table.PurgeAsync("items", null, false, CancellationToken.None);
 
             // make sure data is purged
             Assert.AreEqual(store.TableMap["stringId_test_table"].Count, 0);
             // make sure delta token is removed
-            Assert.IsFalse(store.TableMap[MobileServiceLocalSystemTables.Config].ContainsKey("stringId_test_table_items_deltaToken"));
+            Assert.IsFalse(store.TableMap[MobileServiceLocalSystemTables.Config].ContainsKey("deltaToken|stringId_test_table|items"));
 
             // pull again
             await table.PullAsync("items", table.CreateQuery());
@@ -919,7 +919,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
         }
 
         [AsyncTestMethod]
-        public async Task PurgeAsync_Throws_WhenQueryKeyIsInvalid()
+        public async Task PurgeAsync_Throws_WhenQueryIdIsInvalid()
         {
             IMobileServiceClient service = new MobileServiceClient("http://www.test.com", "secret...", new TestHttpHandler());
             await service.SyncContext.InitializeAsync(new MobileServiceLocalStoreMock(), new MobileServiceSyncHandler());
@@ -950,6 +950,55 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
 
             Assert.AreEqual(ex.Message, "The table cannot be purged because it has pending operations.");
             Assert.AreEqual(service.SyncContext.PendingOperations, 1L); // operation still in queue
+        }
+
+        [AsyncTestMethod]
+        public async Task PurgeAsync_Throws_WhenThereIsOperationInTable_AndForceIsTrue_AndQueryIsSpecified()
+        {
+            var hijack = new TestHttpHandler();
+            hijack.SetResponseContent("{\"id\":\"abc\",\"String\":\"Hey\"}");
+            var store = new MobileServiceLocalStoreMock();
+            IMobileServiceClient service = new MobileServiceClient("http://www.test.com", "secret...", hijack);
+            await service.SyncContext.InitializeAsync(store, new MobileServiceSyncHandler());
+
+            // insert an item but don't push
+            IMobileServiceSyncTable table = service.GetSyncTable("someTable");
+            await table.InsertAsync(new JObject() { { "id", "abc" } });
+            Assert.AreEqual(store.TableMap[table.TableName].Count, 1); // item is inserted
+
+            // this should trigger a push
+            var ex = await ThrowsAsync<InvalidOperationException>(() => table.PurgeAsync(null, "$filter=a eq b", true, CancellationToken.None));
+
+            Assert.AreEqual(ex.Message, "The table cannot be purged because it has pending operations.");
+            Assert.AreEqual(service.SyncContext.PendingOperations, 1L); // operation still in queue
+        }
+
+        [AsyncTestMethod]
+        public async Task PurgeAsync_DeletesOperations_WhenThereIsOperationInTable_AndForceIsTrue()
+        {
+            var hijack = new TestHttpHandler();
+            hijack.SetResponseContent("{\"id\":\"abc\",\"String\":\"Hey\"}");
+            var store = new MobileServiceLocalStoreMock();
+            IMobileServiceClient service = new MobileServiceClient("http://www.test.com", "secret...", hijack);
+            await service.SyncContext.InitializeAsync(store, new MobileServiceSyncHandler());
+
+            // put a dummy delta token
+            string deltaKey = "deltaToken|someTable|abc";
+            store.TableMap[MobileServiceLocalSystemTables.Config] = new Dictionary<string, JObject>() { { deltaKey, new JObject() } };
+
+            // insert an item but don't push
+            IMobileServiceSyncTable table = service.GetSyncTable("someTable");
+            await table.InsertAsync(new JObject() { { "id", "abc" } });
+            Assert.AreEqual(store.TableMap[table.TableName].Count, 1); // item is inserted
+            Assert.AreEqual(service.SyncContext.PendingOperations, 1L);
+
+            await table.PurgeAsync("abc", null, force: true, cancellationToken: CancellationToken.None);
+
+            Assert.AreEqual(store.TableMap[table.TableName].Count, 0); // item is deleted
+            Assert.AreEqual(service.SyncContext.PendingOperations, 0L); // operation is also removed
+
+            // deleted delta token
+            Assert.IsFalse(store.TableMap[MobileServiceLocalSystemTables.Config].ContainsKey(deltaKey));
         }
 
         [AsyncTestMethod]
@@ -1154,7 +1203,6 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
         [AsyncTestMethod]
         public async Task UpdateAsync_CancelsSecondUpdate_WhenUpdateIsInQueue()
         {
-            var store = new MobileServiceLocalStoreMock();
             await this.TestCollapseCancel(firstOperationOnItem1: (table, item1) => table.UpdateAsync(item1),
                                         operationOnItem2: (table, item2) => table.DeleteAsync(item2),
                                         secondOperationOnItem1: (table, item1) => table.UpdateAsync(item1),
@@ -1175,6 +1223,60 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
                                             Assert.AreEqual(op.Value<long>("version"), 2L);
                                         });
         }
+
+        [AsyncTestMethod]
+        public async Task Collapse_DeletesTheError_OnMutualCancel()
+        {
+            var store = new MobileServiceLocalStoreMock();
+            var hijack = new TestHttpHandler();
+            MobileServiceClient service = new MobileServiceClient("http://www.test.com", "secret...", hijack);
+
+            var item = new StringIdType() { Id = "item1", String = "what?" };
+
+            await service.SyncContext.InitializeAsync(store, new MobileServiceSyncHandler());
+            IMobileServiceSyncTable<StringIdType> table = service.GetSyncTable<StringIdType>();
+
+            await table.InsertAsync(item);
+            Assert.AreEqual(service.SyncContext.PendingOperations, 1L);
+
+            string id = store.TableMap[MobileServiceLocalSystemTables.OperationQueue].Values.First().Value<string>("id");
+            // inject an error to test if it is deleted on collapse
+            store.TableMap[MobileServiceLocalSystemTables.SyncErrors] = new Dictionary<string, JObject>() { { id, new JObject() } };
+
+            await table.DeleteAsync(item);
+            Assert.AreEqual(service.SyncContext.PendingOperations, 0L);
+
+            // error should be deleted
+            Assert.AreEqual(store.TableMap[MobileServiceLocalSystemTables.SyncErrors].Count, 0);
+        }
+
+        [AsyncTestMethod]
+        public async Task Collapse_DeletesTheError_OnReplace()
+        {
+            var store = new MobileServiceLocalStoreMock();
+            var hijack = new TestHttpHandler();
+            MobileServiceClient service = new MobileServiceClient("http://www.test.com", "secret...", hijack);
+
+            var item = new StringIdType() { Id = "item1", String = "what?" };
+
+            await service.SyncContext.InitializeAsync(store, new MobileServiceSyncHandler());
+            IMobileServiceSyncTable<StringIdType> table = service.GetSyncTable<StringIdType>();
+
+            await table.InsertAsync(item);
+            Assert.AreEqual(service.SyncContext.PendingOperations, 1L);
+
+            string id = store.TableMap[MobileServiceLocalSystemTables.OperationQueue].Values.First().Value<string>("id");
+
+            // inject an error to test if it is deleted on collapse
+            store.TableMap[MobileServiceLocalSystemTables.SyncErrors] = new Dictionary<string, JObject>() { { id, new JObject() } };
+
+            await table.UpdateAsync(item);
+            Assert.AreEqual(service.SyncContext.PendingOperations, 1L);
+
+            // error should be deleted
+            Assert.AreEqual(store.TableMap[MobileServiceLocalSystemTables.SyncErrors].Count, 0);
+        }
+
 
         [AsyncTestMethod]
         public async Task UpdateAsync_CancelsSecondUpdate_WhenInsertIsInQueue()
@@ -1198,7 +1300,6 @@ namespace Microsoft.WindowsAzure.MobileServices.Test
                                             var op = queue.Values.Single(o => o.Value<string>("itemId") == "item1");
                                             Assert.AreEqual(op.Value<long>("version"), 2L);
                                         });
-
         }
 
         [AsyncTestMethod]

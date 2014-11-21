@@ -159,7 +159,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Sync
         /// </summary>
         /// <param name="tableName">The name of table to pull</param>
         /// <param name="tableKind">The kind of table</param>
-        /// <param name="queryKey">A string that uniquely identifies this query and is used to keep track of its sync state.</param>
+        /// <param name="queryId">A string that uniquely identifies this query and is used to keep track of its sync state.</param>
         /// <param name="query">An OData query that determines which items to 
         /// pull from the remote table.</param>
         /// <param name="options">An instance of <see cref="MobileServiceRemoteTableOptions"/></param>
@@ -175,18 +175,21 @@ namespace Microsoft.WindowsAzure.MobileServices.Sync
         /// <returns>
         /// A task that completes when pull operation has finished.
         /// </returns>
-        public async Task PullAsync(string tableName, MobileServiceTableKind tableKind, string queryKey, string query, MobileServiceRemoteTableOptions options, IDictionary<string, string> parameters, IEnumerable<string> relatedTables, MobileServiceObjectReader reader, CancellationToken cancellationToken)
+        public async Task PullAsync(string tableName, MobileServiceTableKind tableKind, string queryId, string query, MobileServiceRemoteTableOptions options, IDictionary<string, string> parameters, IEnumerable<string> relatedTables, MobileServiceObjectReader reader, CancellationToken cancellationToken)
         {
             await this.EnsureInitializedAsync();
 
-            if (parameters.Keys.Any(k => k.Equals(MobileServiceTable.IncludeDeletedParameterName, StringComparison.OrdinalIgnoreCase)))
+            if (parameters != null)
             {
-                throw new ArgumentException(Resources.Pull_Cannot_Use_Reserved_Key.FormatInvariant(MobileServiceTable.IncludeDeletedParameterName));
-            }
+                if (parameters.Keys.Any(k => k.Equals(MobileServiceTable.IncludeDeletedParameterName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new ArgumentException(Resources.Pull_Cannot_Use_Reserved_Key.FormatInvariant(MobileServiceTable.IncludeDeletedParameterName));
+                }
 
-            if (parameters.Keys.Any(k => k.Equals(MobileServiceTable.SystemPropertiesQueryParameterName, StringComparison.OrdinalIgnoreCase)))
-            {
-                throw new ArgumentException(Resources.Pull_Cannot_Use_Reserved_Key.FormatInvariant(MobileServiceTable.SystemPropertiesQueryParameterName));
+                if (parameters.Keys.Any(k => k.Equals(MobileServiceTable.SystemPropertiesQueryParameterName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new ArgumentException(Resources.Pull_Cannot_Use_Reserved_Key.FormatInvariant(MobileServiceTable.SystemPropertiesQueryParameterName));
+                }
             }
 
             var table = await this.GetTable(tableName);
@@ -199,7 +202,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Sync
                 throw new ArgumentException(Resources.MobileServiceSyncTable_PullWithSelectNotSupported, "query");
             }
 
-            bool isIncrementalSync = !String.IsNullOrEmpty(queryKey);
+            bool isIncrementalSync = !String.IsNullOrEmpty(queryId);
             if (isIncrementalSync)
             {
                 if (queryDescription.Ordering.Any())
@@ -230,17 +233,17 @@ namespace Microsoft.WindowsAzure.MobileServices.Sync
             // let us not burden the server to calculate the count when we don't need it for pull
             queryDescription.IncludeTotalCount = false;
 
-            var action = new PullAction(table, tableKind, this, queryKey, queryDescription, parameters, relatedTables, this.opQueue, this.settings, this.Store, options, reader, cancellationToken);
+            var action = new PullAction(table, tableKind, this, queryId, queryDescription, parameters, relatedTables, this.opQueue, this.settings, this.Store, options, reader, cancellationToken);
             await this.ExecuteSyncAction(action);
         }
 
-        public async Task PurgeAsync(string tableName, MobileServiceTableKind tableKind, string queryKey, string query, CancellationToken cancellationToken)
+        public async Task PurgeAsync(string tableName, MobileServiceTableKind tableKind, string queryId, string query, bool force, CancellationToken cancellationToken)
         {
             await this.EnsureInitializedAsync();
 
             var table = await this.GetTable(tableName);
             var queryDescription = MobileServiceTableQueryDescription.Parse(tableName, query);
-            var action = new PurgeAction(table, tableKind, queryKey, queryDescription, this, this.opQueue, this.settings, this.Store, cancellationToken);
+            var action = new PurgeAction(table, tableKind, queryId, queryDescription, force, this, this.opQueue, this.settings, this.Store, cancellationToken);
             await this.ExecuteSyncAction(action);
         }
 
@@ -334,10 +337,12 @@ namespace Microsoft.WindowsAzure.MobileServices.Sync
 
         private async Task TryCancelOperation(MobileServiceTableOperationError error)
         {
-            if (!await this.opQueue.DeleteAsync(error.OperationId, error.OperationVersion))
+            if (!await this.opQueue.DeleteAsync(error.Id, error.OperationVersion))
             {
                 throw new InvalidOperationException(Resources.SyncError_OperationUpdated);
             }
+            // delete errors for cancelled operation
+            await this.Store.DeleteAsync(MobileServiceLocalSystemTables.SyncErrors, error.Id);
         }
 
         private async Task EnsureInitializedAsync()
@@ -369,12 +374,18 @@ namespace Microsoft.WindowsAzure.MobileServices.Sync
                 }
                 catch (Exception ex)
                 {
+                    if (ex is MobileServiceLocalStoreException)
+                    {
+                        throw;
+                    }
                     throw new MobileServiceLocalStoreException(Resources.SyncStore_OperationFailed, ex);
                 }
 
                 if (existing != null)
                 {
                     existing.Collapse(operation); // cancel either existing, new or both operation 
+                    // delete error for collapsed operation
+                    await this.Store.DeleteAsync(MobileServiceLocalSystemTables.SyncErrors, existing.Id);
                     if (existing.IsCancelled) // if cancelled we delete it
                     {
                         await this.opQueue.DeleteAsync(existing.Id, existing.Version);

@@ -24,6 +24,33 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
         public static string TestDbName = SQLiteStoreTests.TestDbName;
 
         [AsyncTestMethod]
+        public async Task InsertAsync_Throws_IfItemAlreadyExistsInLocalStore()
+        {
+            ResetDatabase(TestTable);
+
+            var store = new MobileServiceSQLiteStore(TestDbName);
+            store.DefineTable(TestTable, new JObject()
+            {
+                { "id", String.Empty},
+                { "String", String.Empty }
+            });
+
+            var hijack = new TestHttpHandler();
+            IMobileServiceClient service = await CreateClient(hijack, store);
+
+            string pullResult = "[{\"id\":\"abc\",\"String\":\"Wow\"}]";
+            hijack.AddResponseContent(pullResult);
+            hijack.AddResponseContent("[]");
+
+            IMobileServiceSyncTable table = service.GetSyncTable(TestTable);
+            await table.PullAsync(null, null);
+
+            var ex = await AssertEx.Throws<MobileServiceLocalStoreException>(() => table.InsertAsync(new JObject() { { "id", "abc" } }));
+
+            Assert.AreEqual(ex.Message, "An insert operation on the item is already in the queue.");
+        }
+
+        [AsyncTestMethod]
         public async Task ReadAsync_RoundTripsDate()
         {
             string tableName = "itemWithDate";
@@ -240,16 +267,19 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
 
                 await store.InitializeAsync();
 
-                await store.UpsertAsync("ITEMwithDATE", new[]{new JObject()
+                await store.UpsertAsync("ITEMwithDATE", new[]
                 {
-                    { "ID", Guid.NewGuid() },
-                    {"dATE", DateTime.UtcNow }
-                }}, fromServer: false);
+                    new JObject()
+                    {
+                        { "ID", Guid.NewGuid() },
+                        {"dATE", DateTime.UtcNow }
+                    }
+                }, ignoreMissingColumns: false);
             }
         }
 
         [AsyncTestMethod]
-        public async Task PullAsync_DoesIncrementalSync_WhenQueryKeyIsSpecified()
+        public async Task PullAsync_DoesIncrementalSync_WhenQueryIdIsSpecified()
         {
             ResetDatabase(TestTable);
 
@@ -260,7 +290,7 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
             hijack.Responses.Add(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(pullResult) }); // pull
             hijack.AddResponseContent("[]");
 
-            await table.PullAsync(queryKey: "todoItems", query: table.CreateQuery());
+            await table.PullAsync(queryId: "todoItems", query: table.CreateQuery());
             AssertEx.QueryEquals(hijack.Requests[0].RequestUri.Query, "?$filter=(__updatedAt%20ge%20datetimeoffset'1970-01-01T00%3A00%3A00.0000000%2B00%3A00')&$orderby=__updatedAt&$skip=0&$top=50&__includeDeleted=true&__systemproperties=__updatedAt%2C__deleted");
 
 
@@ -268,7 +298,7 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
             hijack.AddResponseContent(pullResult); // pull
             hijack.AddResponseContent("[]");
 
-            await table.PullAsync(queryKey: "todoItems", query: table.CreateQuery());
+            await table.PullAsync(queryId: "todoItems", query: table.CreateQuery());
 
             var item = await table.LookupAsync("b");
             Assert.AreEqual(item.String, "Updated");
@@ -277,7 +307,7 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
         }
 
         [AsyncTestMethod]
-        public async Task PullAsync_DoesIncrementalSync_WhenQueryKeyIsSpecified_WithoutCache()
+        public async Task PullAsync_DoesIncrementalSync_WhenQueryIdIsSpecified_WithoutCache()
         {
             ResetDatabase(TestTable);
 
@@ -288,7 +318,7 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
             hijack.Responses.Add(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(pullResult) }); // pull
             hijack.AddResponseContent("[]");
 
-            await table.PullAsync(queryKey: "todoItems", query: table.CreateQuery());
+            await table.PullAsync(queryId: "todoItems", query: table.CreateQuery());
             AssertEx.QueryEquals(hijack.Requests[0].RequestUri.Query, "?$filter=(__updatedAt%20ge%20datetimeoffset'1970-01-01T00%3A00%3A00.0000000%2B00%3A00')&$orderby=__updatedAt&$skip=0&$top=50&__includeDeleted=true&__systemproperties=__updatedAt%2C__deleted");
 
             table = await GetSynctable<ToDoWithStringId>(hijack);
@@ -298,7 +328,7 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
             hijack.AddResponseContent(pullResult); // pull
             hijack.AddResponseContent("[]");
 
-            await table.PullAsync(queryKey: "todoItems", query: table.CreateQuery());
+            await table.PullAsync(queryId: "todoItems", query: table.CreateQuery());
 
             var item = await table.LookupAsync("b");
             Assert.AreEqual(item.String, "Updated");
@@ -317,7 +347,7 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
             hijack.Responses.Add(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(pullResult) }); // pull
             hijack.AddResponseContent("[]");
 
-            await table.PullAsync();
+            await table.PullAsync(null, null);
 
             var item = await table.LookupAsync("b");
             Assert.AreEqual(item.String, "Wow");
@@ -334,6 +364,9 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
         public async Task PullAsync_DoesNotTriggerPush_OnUnrelatedTables_WhenThereIsOperationTable()
         {
             ResetDatabase(TestTable);
+            TestUtilities.DropTestTable(TestDbName, "unrelatedTable");
+            TestUtilities.DropTestTable(TestDbName, "relatedTable");
+            TestUtilities.DropTestTable(TestDbName, "StringIdType");
 
             var hijack = new TestHttpHandler();
             hijack.AddResponseContent("{\"id\":\"abc\",\"String\":\"Hey\"}");
@@ -368,6 +401,8 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
         public async Task PullAsync_DoesNotTriggerPush_WhenPushOtherTablesIsFalse()
         {
             ResetDatabase(TestTable);
+            TestUtilities.DropTestTable(TestDbName, "unrelatedTable");
+            TestUtilities.DropTestTable(TestDbName, "StringIdType");
 
             var hijack = new TestHttpHandler();
             hijack.AddResponseContent("{\"id\":\"abc\",\"String\":\"Hey\"}");
@@ -402,6 +437,8 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
         public async Task PullAsync_TriggersPush_OnRelatedTables_WhenThereIsOperationTable()
         {
             ResetDatabase(TestTable);
+            TestUtilities.DropTestTable(TestDbName, "relatedTable");
+            TestUtilities.DropTestTable(TestDbName, "StringIdType");
 
             var hijack = new TestHttpHandler();
             hijack.AddResponseContent("{\"id\":\"abc\",\"String\":\"Hey\"}");
@@ -438,6 +475,8 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
         public async Task PullAsync_TriggersPush_WhenPushOtherTablesIsTrue_AndThereIsOperationTable()
         {
             ResetDatabase(TestTable);
+            TestUtilities.DropTestTable(TestDbName, "relatedTable");
+            TestUtilities.DropTestTable(TestDbName, "StringIdType");
 
             var hijack = new TestHttpHandler();
             hijack.AddResponseContent("{\"id\":\"abc\",\"String\":\"Hey\"}");
@@ -474,6 +513,8 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
         public async Task PushAsync_PushesOnlySelectedTables_WhenSpecified()
         {
             ResetDatabase(TestTable);
+            TestUtilities.DropTestTable(TestDbName, "someTable");
+            TestUtilities.DropTestTable(TestDbName, "StringIdType");
 
             var hijack = new TestHttpHandler();
             hijack.AddResponseContent("{\"id\":\"abc\",\"String\":\"Hey\"}");
@@ -504,6 +545,8 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
         public async Task PushAsync_PushesAllTables_WhenEmptyListIsGiven()
         {
             ResetDatabase(TestTable);
+            TestUtilities.DropTestTable(TestDbName, "someTable");
+            TestUtilities.DropTestTable(TestDbName, "StringIdType");
 
             var hijack = new TestHttpHandler();
             hijack.AddResponseContent("{\"id\":\"abc\",\"String\":\"Hey\"}");
@@ -516,13 +559,13 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
             IMobileServiceClient client = await CreateClient(hijack, store);
 
             // insert item in pull table
-            IMobileServiceSyncTable unrelatedTable = client.GetSyncTable("someTable");
-            await unrelatedTable.InsertAsync(new JObject() { { "id", "abc" } });
+            IMobileServiceSyncTable table1 = client.GetSyncTable("someTable");
+            await table1.InsertAsync(new JObject() { { "id", "abc" } });
 
             // then insert item in other table
-            MobileServiceSyncTable<StringIdType> mainTable = client.GetSyncTable<StringIdType>() as MobileServiceSyncTable<StringIdType>;
+            MobileServiceSyncTable<StringIdType> table2 = client.GetSyncTable<StringIdType>() as MobileServiceSyncTable<StringIdType>;
             var item = new StringIdType() { Id = "abc", String = "what?" };
-            await mainTable.InsertAsync(item);
+            await table2.InsertAsync(item);
 
             await (client.SyncContext as MobileServiceSyncContext).PushAsync(CancellationToken.None);
 
@@ -799,7 +842,8 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
                 DateTime = new DateTime(2010, 10, 10, 10, 10, 10, DateTimeKind.Utc),
                 DateTimeOffset = new DateTimeOffset(2011, 11, 11, 11, 11, 11, 11, TimeSpan.Zero),
                 Nullable = 12.13,
-                NullableDateTime = new DateTime(2014, 12, 14, 14, 14, 14, DateTimeKind.Utc),
+                NullableDateTime = new DateTime(2010, 10, 10, 10, 10, 10, DateTimeKind.Utc),
+                TimeSpan = new TimeSpan(0, 12, 12, 15, 95),
                 Uri = new Uri("http://example.com"),
                 Enum1 = Enum1.Enum1Value2,
                 Enum2 = Enum2.Enum2Value2,
@@ -836,6 +880,7 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
 ""dateTime"":""2010-10-10T10:10:10.000Z"",
 ""dateTimeOffset"":""2011-11-11T11:11:11.011Z"",
 ""nullableDateTime"":""2010-10-10T10:10:10.000Z"",
+""timeSpan"":""12:12:15.095"",
 ""nullable"":12.13,
 ""uri"":""http://example.com/"",
 ""enum1"":""Enum1Value2"",
@@ -871,7 +916,7 @@ namespace Microsoft.WindowsAzure.MobileServices.SQLiteStore.Test.UnitTests
             await service.SyncContext.PushAsync();
 
             // then pull changes from server
-            await table.PullAsync();
+            await table.PullAsync(null, null);
 
             // order the records by id so we can assert them predictably 
             IList<ToDoWithStringId> items = await table.OrderBy(i => i.Id).ToListAsync();

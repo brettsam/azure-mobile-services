@@ -413,11 +413,11 @@ namespace Microsoft.WindowsAzure.MobileServices {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The query key must start with a letter and can contain only letters and digits..
+        ///   Looks up a localized string similar to The query id must start with a letter and can contain only letters, digits, hyphen or underscore..
         /// </summary>
-        internal static string MobileServiceSyncTable_InvalidQueryKey {
+        internal static string MobileServiceSyncTable_InvalidQueryId {
             get {
-                return ResourceManager.GetString("MobileServiceSyncTable_InvalidQueryKey", resourceCulture);
+                return ResourceManager.GetString("MobileServiceSyncTable_InvalidQueryId", resourceCulture);
             }
         }
         
@@ -814,6 +814,15 @@ namespace Microsoft.WindowsAzure.MobileServices {
         internal static string Push_ConflictWithReservedName {
             get {
                 return ResourceManager.GetString("Push_ConflictWithReservedName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Push operation has failed. See the PushResult for details..
+        /// </summary>
+        internal static string Push_Failure {
+            get {
+                return ResourceManager.GetString("Push_Failure", resourceCulture);
             }
         }
         

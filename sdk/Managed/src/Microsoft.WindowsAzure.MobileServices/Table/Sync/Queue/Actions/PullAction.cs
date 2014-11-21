@@ -19,12 +19,13 @@ namespace Microsoft.WindowsAzure.MobileServices.Sync
         private IDictionary<string, string> parameters;
         private MobileServiceRemoteTableOptions options; // the supported options on remote table 
         private readonly PullCursor cursor;
+        private Task pendingAction;
         private PullStrategy strategy;
 
         public PullAction(MobileServiceTable table,
                           MobileServiceTableKind tableKind,
                           MobileServiceSyncContext context,
-                          string queryKey,
+                          string queryId,
                           MobileServiceTableQueryDescription query,
                           IDictionary<string, string> parameters,
                           IEnumerable<string> relatedTables,
@@ -34,7 +35,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Sync
                           MobileServiceRemoteTableOptions options,
                           MobileServiceObjectReader reader,
                           CancellationToken cancellationToken)
-            : base(table, tableKind, queryKey, query, relatedTables, context, operationQueue, settings, store, cancellationToken)
+            : base(table, tableKind, queryId, query, relatedTables, context, operationQueue, settings, store, cancellationToken)
         {
             this.options = options;
             this.parameters = parameters;
@@ -44,9 +45,18 @@ namespace Microsoft.WindowsAzure.MobileServices.Sync
 
         public MobileServiceObjectReader Reader { get; private set; }
 
-        protected override bool CanDeferIfDirty
+
+        protected override Task<bool> HandleDirtyTable()
         {
-            get { return true; }
+            // there are pending operations on the same table so defer the action
+            this.pendingAction = this.Context.DeferTableActionAsync(this);
+            // we need to return in order to give PushAsync a chance to execute so we don't await the pending push
+            return Task.FromResult(false);
+        }
+
+        protected override Task WaitPendingAction()
+        {
+            return this.pendingAction ?? Task.FromResult(0);
         }
 
         protected async override Task ProcessTableAsync()
@@ -111,7 +121,7 @@ namespace Microsoft.WindowsAzure.MobileServices.Sync
 
             if (upsertList.Any())
             {
-                await this.Store.UpsertAsync(this.Table.TableName, upsertList, fromServer: true);
+                await this.Store.UpsertAsync(this.Table.TableName, upsertList, ignoreMissingColumns: true);
             }
 
             if (deletedIds.Any())
@@ -169,10 +179,10 @@ namespace Microsoft.WindowsAzure.MobileServices.Sync
 
         private async Task CreatePullStrategy()
         {
-            bool isIncrementalSync = !String.IsNullOrEmpty(this.QueryKey);
+            bool isIncrementalSync = !String.IsNullOrEmpty(this.QueryId);
             if (isIncrementalSync)
             {
-                this.strategy = new IncrementalPullStrategy(this.Table, this.Query, this.QueryKey, this.Settings, this.cursor, this.options);
+                this.strategy = new IncrementalPullStrategy(this.Table, this.Query, this.QueryId, this.Settings, this.cursor, this.options);
             }
             else
             {
