@@ -13,6 +13,10 @@
 @property (nonatomic, strong, readonly) MSOperationQueue *operationQueue;
 @property (nonatomic, strong)           NSOperationQueue *callbackQueue;
 @property (nonatomic, strong)           NSMutableArray *errors;
+@property (nonatomic)                   NSInteger recordsProcessed;
+@property (nonatomic, strong)           NSDate *maxDate;
+@property (nonatomic, strong)           NSDate *deltaToken;
+@property (nonatomic, strong)           NSPredicate *originalPredicate;
 
 @property (atomic) NSInteger operationSequence;
 
@@ -26,7 +30,7 @@
 
 -(void) readWithQuery:(MSQuery *)query completion:(MSReadQueryBlock)completion;
 
--(void) pullWithQuery:(MSQuery *)query completion:(MSSyncBlock)completion;
+-(void) pullWithQuery:(MSQuery *)query queryKey:(NSString *)queryKey completion:(MSSyncBlock)completion;
 
 -(void) purgeWithQuery:(MSQuery *)query completion:(MSSyncBlock)completion;
 

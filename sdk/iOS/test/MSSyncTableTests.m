@@ -5,6 +5,7 @@
 #import <XCTest/XCTest.h>
 #import "MSSyncTable.h"
 #import "MSTestFilter.h"
+#import "MSMultiRequestTestFilter.h"
 #import "MSQuery.h"
 #import "MSTable+MSTableTestUtilities.h"
 #import "MSOfflinePassthroughHelper.h"
@@ -815,32 +816,14 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
 
 -(void) testPullSuccess
 {
-    MSTestFilter *testFilter = [[MSTestFilter alloc] init];
-    
-    __block NSURLRequest *actualRequest = nil;
-    testFilter.onInspectRequest = ^(NSURLRequest *request) {
-        actualRequest = request;
-        return request;
-    };
-    
-    NSHTTPURLResponse *response = [[NSHTTPURLResponse alloc]
-                                   initWithURL:nil
-                                   statusCode:200
-                                   HTTPVersion:nil headerFields:nil];
-    
-    NSString* stringData = @"[{\"id\": \"one\", \"text\":\"first item\"},{\"id\": \"two\", \"text\":\"second item\"}]";
-    NSData* data = [stringData dataUsingEncoding:NSUTF8StringEncoding];
-    
-    testFilter.responseToUse = response;
-    testFilter.dataToUse = data;
-    testFilter.ignoreNextFilter = YES;
-    offline.upsertCalls = 0;
+    NSString* stringData = @"[{\"id\": \"one\", \"text\":\"first item\", \"__updatedAt\":\"1999-12-03T15:44:29.0Z\"},{\"id\": \"two\", \"text\":\"second item\", \"__updatedAt\":\"1999-12-03T15:44:29.0Z\"}]";
+    MSMultiRequestTestFilter *filter = [MSMultiRequestTestFilter testFilterWithStatusCodes:@[@200] data:@[stringData] appendEmptyRequest:YES];
 
-    MSClient *filteredClient = [client clientWithFilter:testFilter];
+    MSClient *filteredClient = [client clientWithFilter:filter];
     MSSyncTable *todoTable = [filteredClient syncTableWithName:@"TodoItem"];
     MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
     
-    [todoTable pullWithQuery:query completion:^(NSError *error) {
+    [todoTable pullWithQuery:query queryKey:nil completion:^(NSError *error) {
         XCTAssertNil(error, @"Error found: %@", error.description);
         XCTAssertEqual(offline.upsertCalls, 1);
         XCTAssertEqual(offline.upsertedItems, 2);
@@ -848,76 +831,51 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     }];
     
     XCTAssertTrue([self waitForTest:30.0], @"Test timed out.");
+    
+    NSURLRequest *firstRequest = (NSURLRequest *)filter.actualRequests[0];
+    NSURLRequest *secondRequest = (NSURLRequest *)filter.actualRequests[1];
 
-    XCTAssertEqualObjects(actualRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?$inlinecount=none&__includeDeleted=1&__systemProperties=__version,__deleted");
+    XCTAssertEqualObjects(firstRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?__includeDeleted=1&$inlinecount=none&__systemProperties=__deleted,__version");
+    XCTAssertEqualObjects(secondRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?__includeDeleted=1$inlinecount=none&$skip=2&__systemProperties=__deleted,__version");
 }
 
 -(void) testPullWithSystemPropeties
 {
-    MSTestFilter *testFilter = [[MSTestFilter alloc] init];
-    
-    __block NSURLRequest *actualRequest = nil;
-    testFilter.onInspectRequest = ^(NSURLRequest *request) {
-        actualRequest = request;
-        return request;
-    };
-    
-    NSHTTPURLResponse *response = [[NSHTTPURLResponse alloc]
-                                   initWithURL:nil
-                                   statusCode:200
-                                   HTTPVersion:nil headerFields:nil];
-    
     NSString* stringData = @"[{\"id\": \"one\", \"text\":\"first item\"},{\"id\": \"two\", \"text\":\"second item\"}]";
-    NSData* data = [stringData dataUsingEncoding:NSUTF8StringEncoding];
+    MSMultiRequestTestFilter *filter = [MSMultiRequestTestFilter testFilterWithStatusCodes:@[@200] data:@[stringData] appendEmptyRequest:YES];
     
-    testFilter.responseToUse = response;
-    testFilter.dataToUse = data;
-    testFilter.ignoreNextFilter = YES;
     offline.upsertCalls = 0;
     
-    MSClient *filteredClient = [client clientWithFilter:testFilter];
+    MSClient *filteredClient = [client clientWithFilter:filter];
     MSSyncTable *todoTable = [filteredClient syncTableWithName:TodoTableNoVersion];
     MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
     
-    [todoTable pullWithQuery:query completion:^(NSError *error) {
+    [todoTable pullWithQuery:query queryKey:nil completion:^(NSError *error) {
         XCTAssertNil(error, @"Error found: %@", error.description);
         XCTAssertEqual((int)offline.upsertCalls, 1, @"Unexpected number of upsert calls");
         XCTAssertEqual((int)offline.upsertedItems, 2, @"Unexpected number of upsert calls");
         done = YES;
     }];
-    
+
     XCTAssertTrue([self waitForTest:30.0], @"Test timed out.");
     
-    XCTAssertEqualObjects(actualRequest.URL.absoluteString, @"https://someUrl/tables/TodoNoVersion?$inlinecount=none&__includeDeleted=1&__systemProperties=__deleted");
+    NSURLRequest *firstRequest = (NSURLRequest *)filter.actualRequests[0];
+    NSURLRequest *secondRequest = (NSURLRequest *)filter.actualRequests[1];
+    
+    XCTAssertEqualObjects(firstRequest.URL.absoluteString, @"https://someUrl/tables/TodoNoVersion?$inlinecount=none&__includeDeleted=1&__systemProperties=__deleted");
+    XCTAssertEqualObjects(secondRequest.URL.absoluteString, @"https://someUrl/tables/TodoNoVersion?$skip=2&$inlinecount=none&__includeDeleted=1&__systemProperties=__deleted");
 }
 
 -(void) testPullSuccessWithDeleted
 {
-    MSTestFilter *testFilter = [[MSTestFilter alloc] init];
-    
-    __block NSURLRequest *actualRequest = nil;
-    testFilter.onInspectRequest = ^(NSURLRequest *request) {
-        actualRequest = request;
-        return request;
-    };
-    
-    NSHTTPURLResponse *response = [[NSHTTPURLResponse alloc]
-                                   initWithURL:nil
-                                   statusCode:200
-                                   HTTPVersion:nil headerFields:nil];
-    
     NSString* stringData = @"[{\"id\": \"one\", \"text\":\"first item\", \"__deleted\":false},{\"id\": \"two\", \"text\":\"second item\", \"__deleted\":true}, {\"id\": \"three\", \"text\":\"third item\", \"__deleted\":null}]";
-    NSData* data = [stringData dataUsingEncoding:NSUTF8StringEncoding];
-    
-    testFilter.responseToUse = response;
-    testFilter.dataToUse = data;
-    testFilter.ignoreNextFilter = YES;
+    MSMultiRequestTestFilter *testFilter = [MSMultiRequestTestFilter testFilterWithStatusCodes:@[@200] data:@[stringData] appendEmptyRequest:@YES];
     
     MSClient *filteredClient = [client clientWithFilter:testFilter];
     MSSyncTable *todoTable = [filteredClient syncTableWithName:TodoTableNoVersion];
     MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
     
-    [todoTable pullWithQuery:query completion:^(NSError *error) {
+    [todoTable pullWithQuery:query queryKey:nil completion:^(NSError *error) {
         XCTAssertNil(error, @"Error occurred: %@", error.description);
         XCTAssertEqual((int)offline.upsertCalls, 1, @"Unexpected number of upsert calls");
         XCTAssertEqual((int)offline.upsertedItems, 2, @"Unexpected number of upsert calls");
@@ -928,33 +886,18 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     
     XCTAssertTrue([self waitForTest:30.0], @"Test timed out.");
     
-    XCTAssertEqualObjects(actualRequest.URL.absoluteString, @"https://someUrl/tables/TodoNoVersion?$inlinecount=none&__includeDeleted=1&__systemProperties=__deleted");
+    NSURLRequest *firstRequest = testFilter.actualRequests[0];
+    NSURLRequest *secondRequest = testFilter.actualRequests[1];
+    XCTAssertEqualObjects(firstRequest.URL.absoluteString, @"https://someUrl/tables/TodoNoVersion?$inlinecount=none&__includeDeleted=1&__systemProperties=__deleted");
+    XCTAssertEqualObjects(secondRequest.URL.absoluteString, @"https://someUrl/tables/TodoNoVersion?$skip=3&$inlinecount=none&__includeDeleted=1&__systemProperties=__deleted");
 }
 
 -(void) testPullWithPushSuccess
 {
-    MSTestFilter *testFilter = [[MSTestFilter alloc] init];
-
-    NSHTTPURLResponse *response = [[NSHTTPURLResponse alloc]
-                                   initWithURL:nil
-                                   statusCode:200
-                                   HTTPVersion:nil headerFields:nil];
-    
-    __block NSInteger nextResponse = 0;
     NSString *insertResponse = @"{\"id\": \"one\", \"text\":\"first item\"}";
-    NSString *pushResponse = @"[{\"id\": \"one\", \"text\":\"first item\"},{\"id\": \"two\", \"text\":\"second item\"}]";
-    
-    __block NSArray *responses = @[[insertResponse dataUsingEncoding:NSUTF8StringEncoding],
-                                  [pushResponse dataUsingEncoding:NSUTF8StringEncoding]];
-    
-    testFilter.onInspectResponseData = ^(NSURLRequest *request, NSData *data) {
-        return responses[nextResponse++];
-    };
-    
-    testFilter.responseToUse = response;
-    testFilter.ignoreNextFilter = YES;
-    testFilter.dataToUse = nil;
-    
+    NSString *pullResponse = @"[{\"id\": \"one\", \"text\":\"first item\"},{\"id\": \"two\", \"text\":\"second item\"}]";
+    MSMultiRequestTestFilter *testFilter = [MSMultiRequestTestFilter testFilterWithStatusCodes:@[@200,@200] data:@[insertResponse,pullResponse] appendEmptyRequest:@YES];
+
     MSClient *filteredClient = [client clientWithFilter:testFilter];
     MSSyncTable *todoTable = [filteredClient syncTableWithName:TodoTableNoVersion];
     MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
@@ -966,15 +909,21 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     
     done = NO;
     
-    [todoTable pullWithQuery:query completion:^(NSError *error) {
+    [todoTable pullWithQuery:query queryKey:nil completion:^(NSError *error) {
         XCTAssertNil(error, @"Unexpected error: %@", error.description);
         XCTAssertEqual(offline.upsertCalls, 4);
         XCTAssertEqual(offline.upsertedItems, 5);
         
         done = YES;
     }];
-    
     XCTAssertTrue([self waitForTest:300.0], @"Test timed out.");
+    
+    NSURLRequest *insertRequest = testFilter.actualRequests[0];
+    NSURLRequest *firstPullRequest = testFilter.actualRequests[1];
+    NSURLRequest *secondPullRequest = testFilter.actualRequests[2];
+    XCTAssertEqualObjects(insertRequest.URL.absoluteString, @"https://someUrl/tables/TodoNoVersion?__systemProperties=__version");
+    XCTAssertEqualObjects(firstPullRequest.URL.absoluteString, @"https://someUrl/tables/TodoNoVersion?$inlinecount=none&__includeDeleted=1&__systemProperties=__deleted");
+    XCTAssertEqualObjects(secondPullRequest.URL.absoluteString, @"https://someUrl/tables/TodoNoVersion?$skip=2&$inlinecount=none&__includeDeleted=1&__systemProperties=__deleted");
 }
 
 -(void) testPullAddsProperFeaturesHeader
@@ -992,7 +941,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     MSSyncTable *todoTable = [filteredClient syncTableWithName:@"TodoItem"];
     MSQuery *query = [todoTable query];
 
-    [todoTable pullWithQuery:query completion:^(NSError *error) {
+    [todoTable pullWithQuery:query queryKey:nil completion:^(NSError *error) {
         XCTAssertNil(error, @"Unexpected error: %@", error.description);
         XCTAssertNotNil(actualRequest);
 
@@ -1010,13 +959,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
 -(void) testPullWithCustomParameters
 {
     NSString* stringData = @"[{\"id\": \"one\", \"text\":\"first item\"},{\"id\": \"two\", \"text\":\"second item\"}]";
-    MSTestFilter *testFilter = [MSTestFilter testFilterWithStatusCode:200 data:stringData];
-    
-    __block NSURLRequest *actualRequest = nil;
-    testFilter.onInspectRequest = ^(NSURLRequest *request) {
-        actualRequest = request;
-        return request;
-    };
+    MSMultiRequestTestFilter *testFilter = [MSMultiRequestTestFilter testFilterWithStatusCodes:@[@200] data:@[stringData] appendEmptyRequest:@YES];
 
     offline.upsertCalls = 0;
     
@@ -1025,7 +968,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
     query.parameters = @{@"mykey": @"myvalue"};
     
-    [todoTable pullWithQuery:query completion:^(NSError *error) {
+    [todoTable pullWithQuery:query queryKey:nil completion:^(NSError *error) {
         XCTAssertNil(error, @"Error found: %@", error.description);
         XCTAssertEqual((int)offline.upsertCalls, 1, @"Unexpected number of upsert calls");
         XCTAssertEqual((int)offline.upsertedItems, 2, @"Unexpected number of upsert calls");
@@ -1034,7 +977,10 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     
     XCTAssertTrue([self waitForTest:30.0], @"Test timed out.");
     
-    XCTAssertEqualObjects(actualRequest.URL.absoluteString, @"https://someUrl/tables/TodoNoVersion?$inlinecount=none&mykey=myvalue&__includeDeleted=1&__systemProperties=__deleted");
+    NSURLRequest *firstRequest = testFilter.actualRequests[0];
+    NSURLRequest *secondRequest = testFilter.actualRequests[1];
+    XCTAssertEqualObjects(firstRequest.URL.absoluteString, @"https://someUrl/tables/TodoNoVersion?$inlinecount=none&mykey=myvalue&__includeDeleted=1&__systemProperties=__deleted");
+    XCTAssertEqualObjects(secondRequest.URL.absoluteString, @"https://someUrl/tables/TodoNoVersion?$skip=2&$inlinecount=none&mykey=myvalue&__includeDeleted=1&__systemProperties=__deleted");
 }
 
 -(void) testPullWithIncludeDeletedFails
@@ -1055,7 +1001,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
     query.parameters = @{@"__includeDeleted": @NO, @"mykey": @"myvalue"};
     
-    [todoTable pullWithQuery:query completion:^(NSError *error) {
+    [todoTable pullWithQuery:query queryKey:nil completion:^(NSError *error) {
         XCTAssertNotNil(error);
         XCTAssertEqual(error.code, MSInvalidParameter);
         XCTAssertEqual((int)offline.upsertCalls, 0, @"Unexpected number of upsert calls");
@@ -1084,7 +1030,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
     query.parameters = @{@"__systemProperties": @"__createdAt,__somethingRandom"};
     
-    [todoTable pullWithQuery:query completion:^(NSError *error) {
+    [todoTable pullWithQuery:query queryKey:nil completion:^(NSError *error) {
         XCTAssertNotNil(error);
         XCTAssertEqual(error.code, MSInvalidParameter);
         XCTAssertEqual((int)offline.upsertCalls, 0, @"Unexpected number of upsert calls");
@@ -1135,6 +1081,104 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
         done = YES;
     }];
     XCTAssertTrue([self waitForTest:10.1], @"Test timed out.");
+}
+
+-(void) testIncrementalPullSuccess
+{
+    NSString* stringData1 = @"[{\"id\": \"one\", \"text\":\"first item\", \"__updatedAt\":\"1999-12-03T15:44:29.0Z\"},{\"id\": \"two\", \"text\":\"second item\", \"__updatedAt\":\"1999-12-03T15:44:29.0Z\"}]";
+    NSString* stringData2 = @"[{\"id\": \"three\", \"text\":\"first item\", \"__updatedAt\":\"1999-12-04T16:44:29.0Z\"},{\"id\": \"four\", \"text\":\"second item\", \"__updatedAt\":\"1999-12-04T16:44:59.0Z\"}]";
+    MSMultiRequestTestFilter *filter = [MSMultiRequestTestFilter testFilterWithStatusCodes:@[@200,@200] data:@[stringData1,stringData2] appendEmptyRequest:YES];
+    
+    MSClient *filteredClient = [client clientWithFilter:filter];
+    MSSyncTable *todoTable = [filteredClient syncTableWithName:@"TodoItem"];
+    MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
+    
+    [todoTable pullWithQuery:query queryKey:@"test_1" completion:^(NSError *error) {
+        XCTAssertNil(error, @"Error found: %@", error.description);
+        XCTAssertEqual(offline.upsertCalls, 4);
+        XCTAssertEqual(offline.upsertedItems, 6);
+        done = YES;
+    }];
+    
+    XCTAssertTrue([self waitForTest:1130.0], @"Test timed out.");
+    
+    NSLog(@"%d", filter.actualRequests.count);
+    
+    NSURLRequest *firstRequest = (NSURLRequest *)filter.actualRequests[0];
+    NSURLRequest *secondRequest = (NSURLRequest *)filter.actualRequests[1];
+    NSURLRequest *thirdRequest = (NSURLRequest *)filter.actualRequests[2];
+    
+    XCTAssertEqualObjects(firstRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?__includeDeleted=1&$inlinecount=none&__systemProperties=__updatedAt,__deleted,__version");
+    XCTAssertEqualObjects(secondRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?__includeDeleted=1&$filter=(__updatedAt%20ge%20datetimeoffset'1999-12-03T15%3A44%3A29.000Z')&$inlinecount=none&__systemProperties=__updatedAt,__deleted,__version");
+    XCTAssertEqualObjects(thirdRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?__includeDeleted=1&$filter=(__updatedAt%20ge%20datetimeoffset'1999-12-04T16%3A44%3A59.000Z')&$inlinecount=none&__systemProperties=__updatedAt,__deleted,__version");
+}
+
+-(void) testPullWithBadQueryKey
+{
+    MSClient *thisClient = [client copy];
+    MSSyncTable *todoTable = [thisClient syncTableWithName:@"TodoItem"];
+    MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
+    
+    [todoTable pullWithQuery:query queryKey:@"testwith|badchar" completion:^(NSError *error) {
+        XCTAssertNotNil(error);
+        XCTAssertEqual(error.code, MSInvalidQueryKey);
+        XCTAssertEqual((int)offline.upsertCalls, 0, @"Unexpected number of upsert calls");
+        XCTAssertEqual((int)offline.upsertedItems, 0, @"Unexpected number of upsert calls");
+        done = YES;
+    }];
+    
+    XCTAssertTrue([self waitForTest:30.0], @"Test timed out.");
+}
+
+-(void) testIncrementalPullWithInsert
+{
+    // insert in the middle of a Pull to make sure we Push before continuing
+    NSString *firstPullData = @"[{\"id\": \"one\", \"text\":\"first item\", \"__updatedAt\":\"1999-12-03T15:44:29.0Z\"},{\"id\": \"two\", \"text\":\"second item\", \"__updatedAt\":\"1999-12-03T15:44:28.0Z\"}]";
+    NSString *insertData = @"{\"id\": \"three\", \"text\":\"third item\"}";
+    NSString *secondPullData = @"[{\"id\": \"one\", \"text\":\"first item\", \"__updatedAt\":\"1999-12-03T15:44:29.0Z\"},{\"id\": \"two\", \"text\":\"second item\", \"__updatedAt\":\"1999-12-03T15:44:28.0Z\"},{\"id\": \"three\", \"text\":\"third item\", \"__updatedAt\":\"1999-12-07T15:44:28.0Z\"}]";
+    MSMultiRequestTestFilter *filter = [MSMultiRequestTestFilter testFilterWithStatusCodes:@[@200,@201,@200] data:@[firstPullData,insertData,secondPullData] appendEmptyRequest:YES];
+    
+    MSClient *filteredClient = [client clientWithFilter:filter];
+    MSSyncTable *todoTable = [filteredClient syncTableWithName:@"TodoItem"];
+    MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
+    
+    // hijack the first filter request to insert
+    __block NSURLRequest *firstPullRequest = nil;
+    ((MSTestFilter *)filter.testFilters[0]).onInspectRequest = ^(NSURLRequest *request) {
+        NSDictionary *item = @{ @"id": @"three", @"name":@"third item" };
+        
+        [todoTable insert:item completion:^(NSDictionary *item, NSError *error) {
+            XCTAssertNil(error, @"error should have been nil.");
+            done = YES;
+        }];
+        
+        XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
+        done = NO;
+        
+        firstPullRequest = request;
+        return request;
+    };
+
+    [todoTable pullWithQuery:query queryKey:@"test-1" completion:^(NSError *error) {
+        XCTAssertNil(error, @"Error found: %@", error.description);
+        XCTAssertEqual(offline.upsertCalls, 5);
+        XCTAssertEqual(offline.upsertedItems, 7);
+        done = YES;
+    }];
+    
+    // we need to wait twice here. the flag is set in the request, then again in the pull completion
+    XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
+    XCTAssertTrue([self waitForTest:30.0], @"Test timed out.");
+    
+    // since we hijacked the first request, the 0th one is actually the second
+    NSURLRequest *insertRequest = (NSURLRequest *)filter.actualRequests[0];
+    NSURLRequest *secondPullRequest = (NSURLRequest *)filter.actualRequests[1];
+    NSURLRequest *thirdPullRequest = (NSURLRequest *)filter.actualRequests[2];
+    
+    XCTAssertEqualObjects(firstPullRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?$inlinecount=none&__includeDeleted=1&__systemProperties=__version,__deleted");
+    XCTAssertEqualObjects(insertRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?__systemProperties=__version");
+    XCTAssertEqualObjects(secondPullRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?$inlinecount=none&__includeDeleted=1&__systemProperties=__version,__deleted");
+    XCTAssertEqualObjects(thirdPullRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?$filter=(__updatedAt%20ge%20datetime'1999-12-07T15%3A44%3A28.000Z')&$inlinecount=none&__includeDeleted=1&__systemProperties=__version,__deleted");
 }
 
 #pragma mark Purge Tests

@@ -50,11 +50,11 @@ static NSString *const inlineCountNone = @"none";
         if (table.systemProperties & MSSystemPropertyUpdatedAt) {
             [properties addObject:MSSystemColumnUpdatedAt];
         }
-        if (table.systemProperties & MSSystemPropertyVersion) {
-            [properties addObject:MSSystemColumnVersion];
-        }
         if (table.systemProperties & MSSystemPropertyDeleted) {
             [properties addObject:MSSystemColumnDeleted];
+        }
+        if (table.systemProperties & MSSystemPropertyVersion) {
+            [properties addObject:MSSystemColumnVersion];
         }
         value = [properties componentsJoinedByString:@","];
     }

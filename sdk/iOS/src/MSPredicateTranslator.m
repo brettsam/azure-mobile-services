@@ -5,7 +5,7 @@
 #import "MSPredicateTranslator.h"
 #import "MSNaiveISODateFormatter.h"
 #import "MSError.h"
-
+#import "MSDateOffset.h"
 
 #pragma mark * NSExpression Function String Constants
 
@@ -66,6 +66,7 @@ static NSString *const intConstant = @"%d";
 static NSString *const longConstant = @"%ld";
 static NSString *const longLongConstant = @"%lldl";
 static NSString *const dateTimeConstant = @"datetime'%@'";
+static NSString *const dateTimeOffsetConstant = @"datetimeoffset'%@'";
 static NSString *const alwaysTrueConstant = @"(1 eq 1)";
 static NSString *const alwaysFalseConstant = @"(1 eq 0)";
 
@@ -534,6 +535,9 @@ static NSDictionary *staticFunctionInfoLookup;
     else if ([constant isKindOfClass:[NSDate class]]) {
         result = [MSPredicateTranslator visitDateConstant:constant];
     }
+    else if ([constant isKindOfClass:[MSDateOffset class]]) {
+        result = [MSPredicateTranslator visitDateOffsetConstant:constant];
+    }
     else if ([constant isKindOfClass:[NSDecimalNumber class]]) {
         const NSDecimal decimal = [constant decimalValue];
         result = [NSString stringWithFormat:decimalConstant,
@@ -566,6 +570,24 @@ static NSDictionary *staticFunctionInfoLookup;
     
     if (dateString) {
         result = [NSString stringWithFormat:dateTimeConstant, dateString];
+    }
+    
+    return result;
+}
+
++(NSString *) visitDateOffsetConstant:(MSDateOffset *)dateOffset
+{
+    NSString *result = nil;
+    
+    // Get the formatter
+    MSNaiveISODateFormatter *formatter =
+    [MSNaiveISODateFormatter naiveISODateFormatter];
+    
+    // Try to get a formatted date as a string
+    NSString *dateString = [formatter stringFromDate:dateOffset.date];
+    
+    if (dateString) {
+        result = [NSString stringWithFormat:dateTimeOffsetConstant, dateString];
     }
     
     return result;

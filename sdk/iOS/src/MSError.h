@@ -177,4 +177,6 @@ extern NSString *const MSErrorPushResultKey;
 /// Indicates that local storage is corrupt until register or deleteAllRegistrations are invoked
 #define MSPushLocalStorageCorrupt               -1601
 
+#define MSInvalidQueryKey                       -1602
+
 #endif

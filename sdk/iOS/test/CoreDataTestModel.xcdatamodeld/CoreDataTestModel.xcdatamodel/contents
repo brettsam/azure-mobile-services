@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<model userDefinedModelVersionIdentifier="" type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="6244" systemVersion="14A386a" minimumToolsVersion="Xcode 4.3" macOSVersion="Automatic" iOSVersion="Automatic">
+<model userDefinedModelVersionIdentifier="" type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="6252" systemVersion="13F34" minimumToolsVersion="Xcode 4.3" macOSVersion="Automatic" iOSVersion="Automatic">
     <entity name="ColumnTypes" syncable="YES">
         <attribute name="binary" optional="YES" attributeType="Binary" syncable="YES"/>
         <attribute name="boolean" optional="YES" attributeType="Boolean" syncable="YES"/>
@@ -22,6 +22,10 @@
         <attribute name="ms_version" optional="YES" attributeType="String" syncable="YES"/>
         <attribute name="text" optional="YES" attributeType="String" syncable="YES"/>
     </entity>
+    <entity name="MS_TableConfig" syncable="YES">
+        <attribute name="id" optional="YES" attributeType="String" syncable="YES"/>
+        <attribute name="value" optional="YES" attributeType="String" syncable="YES"/>
+    </entity>
     <entity name="MS_TableOperationErrors" syncable="YES">
         <attribute name="id" optional="YES" attributeType="String" syncable="YES"/>
         <attribute name="properties" optional="YES" attributeType="Binary" syncable="YES"/>
@@ -43,11 +47,12 @@
         <attribute name="text" optional="YES" attributeType="String" syncable="YES"/>
     </entity>
     <elements>
-        <element name="ColumnTypes" positionX="-54" positionY="54" width="128" height="208"/>
-        <element name="ManySystemColumns" positionX="-54" positionY="27" width="128" height="148"/>
-        <element name="MS_TableOperationErrors" positionX="-45" positionY="27" width="128" height="75"/>
-        <element name="MS_TableOperations" positionX="-54" positionY="18" width="128" height="103"/>
-        <element name="TodoItem" positionX="-63" positionY="-18" width="128" height="103"/>
-        <element name="TodoNoVersion" positionX="-45" positionY="18" width="128" height="73"/>
+        <element name="ColumnTypes" positionX="135" positionY="-28" width="128" height="208"/>
+        <element name="ManySystemColumns" positionX="-54" positionY="-81" width="128" height="148"/>
+        <element name="MS_TableOperationErrors" positionX="259" positionY="-162" width="128" height="75"/>
+        <element name="MS_TableOperations" positionX="-207" positionY="-0" width="128" height="103"/>
+        <element name="TodoItem" positionX="-216" positionY="-162" width="128" height="103"/>
+        <element name="TodoNoVersion" positionX="-54" positionY="-180" width="128" height="73"/>
+        <element name="MS_TableConfig" positionX="-54" positionY="81" width="128" height="73"/>
     </elements>
 </model>

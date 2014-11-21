@@ -54,6 +54,8 @@ typedef void (^MSSyncPushCompletionBlock)(void);
 - (NSString *) errorTableName;
 /// @}
 
+- (NSString *) configTableName;
+
 /// @name Fetching and Retrieving Data
 /// @{
 

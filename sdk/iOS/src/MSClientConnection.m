@@ -106,6 +106,7 @@ static NSOperationQueue *delegateQueue;
                      orError:(NSError **)error
 {
     // Success is determined just by the HTTP status code
+    NSLog(@"%d", response.statusCode);
     BOOL isSuccessful = response.statusCode < 400;
     
     if (!isSuccessful && self.completion && error) {

@@ -12,6 +12,8 @@
 #import "MSQuery.h"
 #import "MSQueryInternal.h"
 #import "MSQueuePushOperation.h"
+#import "MSNaiveISODateFormatter.h"
+#import "MSDateOffset.h"
 
 @implementation MSSyncContext {
     dispatch_queue_t writeOperationQueue;
@@ -25,12 +27,16 @@ static NSOperationQueue *pushQueue_;
 @synthesize errors = errors_;
 @synthesize client = client_;
 @synthesize callbackQueue = callbackQueue_;
+@synthesize recordsProcessed = recordsProcessed_;
+@synthesize deltaToken = deltaToken_;
+@synthesize maxDate = maxDate_;
+@synthesize originalPredicate = originalPredicate_;
 
 -(void) setClient:(MSClient *)client
 {
     client_ = client;
     operationQueue_ = [[MSOperationQueue alloc] initWithClient:client_ dataSource:self.dataSource];
-
+    
     // We don't need to wait for this, and all operation creation goes onto this queue so its guaranteed to
     // happen only after this is populated.
     dispatch_async(writeOperationQueue, ^{
@@ -64,6 +70,7 @@ static NSOperationQueue *pushQueue_;
         dataSource_ = dataSource;
         delegate_ = delegate;
         errors_ = [NSMutableArray new];
+        recordsProcessed_ = 0;
     }
     
     return self;
@@ -129,7 +136,7 @@ static NSOperationQueue *pushQueue_;
         }
         return;
     }
-
+    
     // Add the operation to the queue
     dispatch_async(writeOperationQueue, ^{
         NSError *error;
@@ -152,14 +159,14 @@ static NSOperationQueue *pushQueue_;
             operation.operationId = self.operationSequence;
             self.operationSequence++;
         }
-
+        
         // Update local store and then the operation queue
         if (error == nil) {
             switch (action) {
                 case MSTableOperationInsert:
                     [self.dataSource upsertItems:[NSArray arrayWithObject:itemToSave] table:table orError:&error];
                     break;
-                
+                    
                 case MSTableOperationUpdate:
                     [self.dataSource upsertItems:[NSArray arrayWithObject:itemToSave] table:table orError:&error];
                     break;
@@ -170,7 +177,7 @@ static NSOperationQueue *pushQueue_;
                     // Capture the deleted item in case the user wants to cancel it or a conflict occur
                     operation.item = item;
                     break;
-                
+                    
                 default:
                     error = [self errorWithDescription:@"Unknown table action" andErrorCode:MSSyncTableInvalidAction];
                     break;
@@ -185,7 +192,7 @@ static NSOperationQueue *pushQueue_;
             }
             return;
         }
-
+        
         // Update the operation queue now
         if (condenseAction == MSCondenseAddNew) {
             [self.operationQueue addOperation:operation orError:&error];
@@ -195,8 +202,8 @@ static NSOperationQueue *pushQueue_;
             
             // FUTURE: Look at moving these upserts into the operation queue object
             [self.dataSource upsertItems:[NSArray arrayWithObject:[operation serialize]]
-                                  table:[self.dataSource operationTableName]
-                                orError:&error];
+                                   table:[self.dataSource operationTableName]
+                                 orError:&error];
             
         } else if (condenseAction != MSCondenseKeep) {
             [self.operationQueue removeOperation:operation orError:&error];
@@ -276,9 +283,9 @@ static NSOperationQueue *pushQueue_;
     // Removing an operation requires write access to the queue
     dispatch_async(writeOperationQueue, ^{
         NSError *error;
-
+        
         // FUTURE: Verify operation hasn't been modified by others
-
+        
         [self.dataSource deleteItemsWithIds:[NSArray arrayWithObject:operation.itemId]
                                       table:operation.tableName
                                     orError:&error];
@@ -295,7 +302,7 @@ static NSOperationQueue *pushQueue_;
 }
 
 /// Verify our input is valid and try to pull our data down from the server
-- (void) pullWithQuery:(MSQuery *)query completion:(MSSyncBlock)completion;
+- (void) pullWithQuery:(MSQuery *)query queryKey:(NSString *)queryKey completion:(MSSyncBlock)completion;
 {
     // We want to throw on unsupported fields so we can change this decision later
     NSError *error;
@@ -347,11 +354,19 @@ static NSOperationQueue *pushQueue_;
         [mutableParameters setObject:@YES forKey:@"__includeDeleted"];
         query.parameters = mutableParameters;
     }
-
+    
     query.table.systemProperties |= MSSystemPropertyDeleted;
+    self.recordsProcessed = 0;
+    self.maxDate = [NSDate distantPast];
+    
+    if (queryKey) {
+        query.table.systemProperties |= MSSystemPropertyUpdatedAt;
+        self.originalPredicate = query.predicate;
+        [self updateQueryFromDeltaToken:(MSQuery *)query queryKey:queryKey];
+    }
     
     // Begin the actual pull request
-    [self pullWithQueryInternal:query completion:completion];
+    [self pullWithQueryInternal:query queryKey:queryKey completion:completion];
 }
 
 /// Basic pull logic is:
@@ -360,7 +375,7 @@ static NSOperationQueue *pushQueue_;
 ///  Read from server and get the new results
 ///  If our table became dirty while we read from the server, start over
 ///  Else save our data into the local store
-- (void) pullWithQueryInternal:(MSQuery *)query completion:(MSSyncBlock)completion
+- (void) pullWithQueryInternal:(MSQuery *)query queryKey:(NSString *)queryKey completion:(MSSyncBlock)completion
 {
     dispatch_async(writeOperationQueue, ^{
         // Before we can pull from the remote, we need to make sure out table doesn't having pending operations
@@ -376,7 +391,7 @@ static NSOperationQueue *pushQueue_;
                 }
                 else {
                     // Check again if we have new pending ops while we synced, and repeat as needed
-                    [self pullWithQueryInternal:query completion:completion];
+                    [self pullWithQueryInternal:query queryKey:queryKey completion:completion];
                 }
             }];
             return;
@@ -401,43 +416,93 @@ static NSOperationQueue *pushQueue_;
                 if (pendingOps.count > 0) {
                     // This is not the best choice here, but for simplicity in the initial cut we just start over
                     // if someone else has made our table dirty
-                    [self pullWithQueryInternal:query completion:completion];
+                    [self pullWithQueryInternal:query queryKey:queryKey completion:completion];
                     return;
                 }
                 
-                //Check if results include the deleted column
                 NSError *localDataSourceError;
-                NSArray *itemsToUpsert = result.items;
-                NSArray *itemsToDelete = [result.items filteredArrayUsingPredicate:
-                                          [NSPredicate predicateWithFormat:@"%K == YES", MSSystemColumnDeleted]];
-                if ([itemsToDelete count] > 0) {
-                    // Remove the deleted items from the overall list if we had some
-                    itemsToUpsert = [result.items filteredArrayUsingPredicate:
-                                     [NSPredicate predicateWithFormat:@"%K != YES", MSSystemColumnDeleted]];
-
-                    
-                    NSMutableArray *itemIds = [NSMutableArray arrayWithCapacity:itemsToDelete.count];
-                    for (NSDictionary *item in itemsToDelete) {
-                        [itemIds addObject:item[@"id"]];
+                NSMutableArray *itemsToUpsert = [NSMutableArray new];
+                NSMutableArray *itemIdsToDelete = [NSMutableArray new];
+                
+                [result.items enumerateObjectsUsingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
+                    if (queryKey) {
+                        self.maxDate = [self.maxDate laterDate:(NSDate *)obj[MSSystemColumnUpdatedAt]];
                     }
                     
-                    [self.dataSource deleteItemsWithIds:itemIds table:query.table.name orError:&localDataSourceError];
-                    
+                    if ((BOOL)obj[MSSystemColumnDeleted]) {
+                        [itemIdsToDelete addObject:obj[@"id"]];
+                    }
+                    else {
+                        [itemsToUpsert addObject:obj];
+                    }
+                }];
+                
+                if ([itemIdsToDelete count] > 0) {
+                    [self.dataSource deleteItemsWithIds:itemIdsToDelete table:query.table.name orError:&localDataSourceError];
+                    if ([self callCompletion:completion IfError:localDataSourceError]) {
+                        return;
+                    }
+                    recordsProcessed_ += itemIdsToDelete.count;
+                }
+                // upsert each item into table that isn't pending to go to the server
+                [self.dataSource upsertItems:itemsToUpsert table:query.table.name orError:&localDataSourceError];
+                if ([self callCompletion:completion IfError:localDataSourceError]) {
+                    return;
+                }
+                recordsProcessed_ += itemsToUpsert.count;
+                
+                if (queryKey) {
+                    NSDateFormatter *formatter = [MSNaiveISODateFormatter naiveISODateFormatter];
+                    NSString *configQueryId = [self getDeltaTokenKeyForTableName:query.table.name queryId:queryKey];
+                    NSDictionary *delta = @{@"id":configQueryId, @"value":[formatter stringFromDate:self.maxDate]};
+                    [self.dataSource upsertItems:@[delta] table:self.dataSource.configTableName orError:&localDataSourceError];
+                    if ([self callCompletion:completion IfError:localDataSourceError]) {
+                        return;
+                    }
+                    if (!self.deltaToken) {
+                        self.recordsProcessed = 0;
+                        [self updateQueryFromDeltaToken:query queryKey:queryKey];
+                    }
+                    else if ([self.deltaToken compare:self.maxDate] == NSOrderedAscending) {
+                        self.recordsProcessed = 0;
+                        [self updateQueryFromDeltaToken:query queryKey:queryKey];
+                    }
+                    else {
+                        query.fetchOffset = self.recordsProcessed;
+                    }
+                }
+                else {
+                    query.fetchOffset = self.recordsProcessed;
                 }
                 
-                if (!localDataSourceError) {
-                    // upsert each item into table that isn't pending to go to the server
-                    [self.dataSource upsertItems:itemsToUpsert table:query.table.name orError:&localDataSourceError];
-                }
-                
-                if (completion) {
-                    [self.callbackQueue addOperationWithBlock:^{
-                        completion(localDataSourceError);
-                    }];
-                }
+                [self pullWithQueryInternal:query queryKey:queryKey completion:completion];
             });
         }];
     });
+}
+
+-(void) updateQueryFromDeltaToken:(MSQuery *)query queryKey:(NSString *)queryKey {
+    NSDateFormatter *formatter = [MSNaiveISODateFormatter naiveISODateFormatter];
+    NSError *localError;
+    NSString *configQueryId = [self getDeltaTokenKeyForTableName:query.table.name queryId:queryKey];
+    NSDictionary *deltaTokenDict = [self.dataSource readTable:self.dataSource.configTableName withItemId:configQueryId orError:&localError];
+    self.deltaToken =  [formatter dateFromString:deltaTokenDict[@"value"]];
+    query.fetchOffset = -1;
+    
+    if (self.deltaToken) {
+        MSDateOffset *offset = [[MSDateOffset alloc]initWithDate:self.deltaToken];
+        NSPredicate *updatedAt = [NSPredicate predicateWithFormat:@"%@ >= %@", MSSystemColumnUpdatedAt, offset];
+        if (self.originalPredicate) {
+            query.predicate = [NSCompoundPredicate andPredicateWithSubpredicates:@[self.originalPredicate, updatedAt]];
+        }
+        else {
+            query.predicate = updatedAt;
+        }
+    }
+}
+
+-(NSString *)getDeltaTokenKeyForTableName:(NSString *)tableName queryId:(NSString *)queryId {
+    return [NSString stringWithFormat:@"deltaToken|%@|%@", tableName, queryId];
 }
 
 /// In order to purge data from the local store, purge first checks if there are any pending operations for
@@ -449,7 +514,7 @@ static NSOperationQueue *pushQueue_;
     dispatch_async(writeOperationQueue, ^{
         // Check if our table is dirty, if so, cancel the purge action
         NSArray *tableOps = [self.operationQueue getOperationsForTable:query.syncTable.name item:nil];
-
+        
         NSError *error;
         if (tableOps.count > 0) {
             error = [self errorWithDescription:@"The table cannot be purged because it has pending operations"
@@ -467,6 +532,11 @@ static NSOperationQueue *pushQueue_;
     });
 }
 
++ (NSString *) createKeyFromTable:(NSString *) table queryKey:(NSString*) key
+{
+    return [NSString stringWithFormat:@"%@_%@", table, key];
+}
+
 + (BOOL) dictionary:(NSDictionary *)dictionary containsCaseInsensitiveKey:(NSString *)key
 {
     for (NSString *object in dictionary.allKeys) {
@@ -475,6 +545,19 @@ static NSOperationQueue *pushQueue_;
         }
     }
     return NO;
+}
+
+-(BOOL) callCompletion:(MSSyncBlock)completion IfError:(NSError *)error {
+    BOOL isError = NO;
+    if (error) {
+        isError = YES;
+        if (completion) {
+            [self.callbackQueue addOperationWithBlock:^{
+                completion(error);
+            }];
+        }
+    }
+    return isError;
 }
 
 # pragma mark * NSError helpers
