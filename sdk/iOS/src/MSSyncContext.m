@@ -421,15 +421,15 @@ static NSOperationQueue *pushQueue_;
                 }
                 
                 NSError *localDataSourceError;
-                NSMutableArray *itemsToUpsert = [NSMutableArray new];
-                NSMutableArray *itemIdsToDelete = [NSMutableArray new];
+                NSMutableArray *itemsToUpsert = [NSMutableArray array];
+                NSMutableArray *itemIdsToDelete = [NSMutableArray array];
                 
                 [result.items enumerateObjectsUsingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
                     if (queryKey) {
                         self.maxDate = [self.maxDate laterDate:(NSDate *)obj[MSSystemColumnUpdatedAt]];
                     }
-                    
-                    if ((BOOL)obj[MSSystemColumnDeleted]) {
+                    BOOL isDeleted =  ((NSNumber *)obj[MSSystemColumnDeleted]).boolValue;
+                    if (isDeleted == YES) {
                         [itemIdsToDelete addObject:obj[@"id"]];
                     }
                     else {
@@ -491,7 +491,7 @@ static NSOperationQueue *pushQueue_;
     
     if (self.deltaToken) {
         MSDateOffset *offset = [[MSDateOffset alloc]initWithDate:self.deltaToken];
-        NSPredicate *updatedAt = [NSPredicate predicateWithFormat:@"%@ >= %@", MSSystemColumnUpdatedAt, offset];
+        NSPredicate *updatedAt = [NSPredicate predicateWithFormat:@"%K >= %@", MSSystemColumnUpdatedAt, offset];
         if (self.originalPredicate) {
             query.predicate = [NSCompoundPredicate andPredicateWithSubpredicates:@[self.originalPredicate, updatedAt]];
         }
