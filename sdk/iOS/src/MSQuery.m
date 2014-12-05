@@ -23,6 +23,7 @@
 @synthesize predicate = predicate_;
 @synthesize orderBy = orderBy_;
 
+
 #pragma mark * Public Initializer Methods
 
 

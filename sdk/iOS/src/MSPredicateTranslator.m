@@ -532,11 +532,11 @@ static NSDictionary *staticFunctionInfoLookup;
     else if ([constant isKindOfClass:[NSString class]]) {
         result = [MSPredicateTranslator visitStringConstant:constant];
     }
-    else if ([constant isKindOfClass:[NSDate class]]) {
-        result = [MSPredicateTranslator visitDateConstant:constant];
-    }
     else if ([constant isKindOfClass:[MSDateOffset class]]) {
         result = [MSPredicateTranslator visitDateOffsetConstant:constant];
+    }
+    else if ([constant isKindOfClass:[NSDate class]]) {
+        result = [MSPredicateTranslator visitDateConstant:constant];
     }
     else if ([constant isKindOfClass:[NSDecimalNumber class]]) {
         const NSDecimal decimal = [constant decimalValue];

@@ -84,6 +84,9 @@ extern NSString *const MSErrorPushResultKey;
 /// Indicates a sync table operation failed due to an internal error
 #define MSSyncTableInternalError                -1154
 
+/// Indicates that the query key contains invalid characters
+#define MSInvalidQueryId                        -1155
+
 /// Indicates a mobile service sync operation (such as a syncTable insert) failed
 /// because the sync context object was not properly initialized
 #define MSSyncContextInvalid                    -1160
@@ -176,7 +179,5 @@ extern NSString *const MSErrorPushResultKey;
 
 /// Indicates that local storage is corrupt until register or deleteAllRegistrations are invoked
 #define MSPushLocalStorageCorrupt               -1601
-
-#define MSInvalidQueryKey                       -1602
 
 #endif

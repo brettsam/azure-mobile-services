@@ -59,17 +59,17 @@
 #pragma mark * Public Local Storage Management commands
 
 
--(void)pullWithQuery:(MSQuery *)query queryKey:(NSString *)queryKey completion:(MSSyncBlock)completion
+-(void)pullWithQuery:(MSQuery *)query queryId:(NSString *)queryId completion:(MSSyncBlock)completion
 {
-    if (![self validateQueryKey:queryKey]) {
-        NSDictionary *userInfo = @{ NSLocalizedDescriptionKey:@"Only alphanumeric characters, underscores (_) and dashes (-) are allowed in a queryKey" };
+    if (![self validateQueryId:queryId]) {
+        NSDictionary *userInfo = @{ NSLocalizedDescriptionKey:@"Only alphanumeric characters, underscores (_) and dashes (-) are allowed in a queryId" };
         NSError *error = [NSError errorWithDomain:MSErrorDomain
-                                             code:MSInvalidQueryKey
+                                             code:MSInvalidQueryId
                                          userInfo:userInfo];
         
         completion(error);
     }
-    [self.client.syncContext pullWithQuery:query queryKey:queryKey completion:completion];
+    [self.client.syncContext pullWithQuery:query queryId:queryId completion:completion];
 }
 
 -(void)purgeWithQuery:(MSQuery *)query completion:(MSSyncBlock)completion
@@ -84,15 +84,19 @@
     }
 }
 
--(BOOL)validateQueryKey:(NSString *)queryKey {
+-(BOOL)validateQueryId:(NSString *)queryId {
+    // nil queryIds are allowed
+    if (!queryId) {
+        return YES;
+    }
     NSString *pattern = @"^[a-zA-Z][a-zA-Z0-9_-]{0,24}$";
     NSError *error;
     NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern options:0 error:&error];
     if (error) {
         return NO;
     }
-    NSRange range = NSMakeRange(0, queryKey.length);
-    NSArray *matches = [regex matchesInString:queryKey options:0 range:range];
+    NSRange range = NSMakeRange(0, queryId.length);
+    NSArray *matches = [regex matchesInString:queryId options:0 range:range];
     if (matches.count == 0) {
         return NO;
     }

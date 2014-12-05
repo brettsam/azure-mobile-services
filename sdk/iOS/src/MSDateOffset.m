@@ -1,21 +1,25 @@
-//
-//  NSDate_MSDateOffset.h
-//  WindowsAzureMobileServices
-//
-//  Created by Brett Samblanet on 11/19/14.
-//  Copyright (c) 2014 Windows Azure. All rights reserved.
-//
+// ----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// ----------------------------------------------------------------------------
 
 #import <Foundation/Foundation.h>
 #import "MSDateOffset.h"
 
 @implementation MSDateOffset
 
-@synthesize date = date_;
-
--(id)initWithDate:(NSDate *)date {
-    self.date = date;
+-(id)initWithDate:(NSDate *)date
+{
+    self = [super init];
+    if(self)
+    {
+        _date = date;
+    }
     return self;
+}
+
++(id)offsetFromDate:(NSDate *)date
+{
+    return [[MSDateOffset alloc] initWithDate:date];;
 }
 
 @end

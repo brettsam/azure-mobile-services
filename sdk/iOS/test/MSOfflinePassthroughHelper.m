@@ -4,6 +4,8 @@
 
 #import "MSOfflinePassthroughHelper.h"
 #import "MSQuery.h"
+#import "MSSyncContext.h"
+#import "MSCoreDataStore.h"
 
 @implementation MSOfflinePassthroughHelper
 
@@ -61,5 +63,6 @@
     self.deleteCalls = 0;
     self.deletedItems = 0;
 }
+
 
 @end

@@ -2,12 +2,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // ----------------------------------------------------------------------------
 
-@interface MSDateOffset : NSObject
 
-@property (nonatomic, strong) NSDate *date;
+#import <Foundation/Foundation.h>
 
--(id)initWithDate:(NSDate *)date;
+@interface MSTestWaiter : NSObject
 
-+(id)offsetFromDate:(NSDate *)date;
+@property (nonatomic) BOOL done;
+
+-(BOOL) waitForTest:(NSTimeInterval)testDuration;
 
 @end
