@@ -56,13 +56,30 @@
     return NO;
 }
 
+-(NSDictionary *) readTable:(NSString *)table withItemId:(NSString *)itemId orError:(NSError **)error
+{
+    self.readTableCalls++;
+    
+    NSDictionary *results = [super readTable:table withItemId:itemId orError:error];
+    
+    if (self.errorOnReadTableWithItemIdOrError) {
+        *error = [NSError errorWithDomain:@"TestError" code:1 userInfo:nil];
+    }
+    else {
+        self.readTableItems += results.count;
+    }
+    
+    return results;
+}
+
 -(void) resetCounts
 {
     self.upsertedItems = 0;
     self.upsertCalls = 0;
     self.deleteCalls = 0;
     self.deletedItems = 0;
+    self.readTableCalls = 0;
+    self.readTableItems = 0;
 }
-
 
 @end

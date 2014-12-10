@@ -72,6 +72,7 @@
 		CF4D49861A2E5C96006AEB70 /* MSQueuePullOperation.h in Headers */ = {isa = PBXBuildFile; fileRef = CF4D49851A2E5C96006AEB70 /* MSQueuePullOperation.h */; };
 		CF4D498A1A2E5CF8006AEB70 /* MSQueuePullOperation.m in Sources */ = {isa = PBXBuildFile; fileRef = CF4D49891A2E5CF8006AEB70 /* MSQueuePullOperation.m */; };
 		CF4D498C1A3253E2006AEB70 /* MSTestWaiter.m in Sources */ = {isa = PBXBuildFile; fileRef = CF4D498B1A3253E2006AEB70 /* MSTestWaiter.m */; };
+		CF4D49921A363537006AEB70 /* settings.plist in Resources */ = {isa = PBXBuildFile; fileRef = CF4D49911A36334C006AEB70 /* settings.plist */; };
 		CF762EC61A1D366E0018C292 /* MSDateOffset.h in Headers */ = {isa = PBXBuildFile; fileRef = CF762EC51A1D366E0018C292 /* MSDateOffset.h */; };
 		CF762EC91A1D37A40018C292 /* MSDateOffset.m in Sources */ = {isa = PBXBuildFile; fileRef = CF762EC71A1D36950018C292 /* MSDateOffset.m */; };
 		E8146642165BE0150038EBE5 /* MSLogin.h in Headers */ = {isa = PBXBuildFile; fileRef = E8146640165BE0150038EBE5 /* MSLogin.h */; };
@@ -223,6 +224,7 @@
 		CF4D49891A2E5CF8006AEB70 /* MSQueuePullOperation.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MSQueuePullOperation.m; sourceTree = "<group>"; };
 		CF4D498B1A3253E2006AEB70 /* MSTestWaiter.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MSTestWaiter.m; sourceTree = "<group>"; };
 		CF4D498D1A3253F7006AEB70 /* MSTestWaiter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MSTestWaiter.h; sourceTree = "<group>"; };
+		CF4D49911A36334C006AEB70 /* settings.plist */ = {isa = PBXFileReference; explicitFileType = text.plist.xml; fileEncoding = 4; path = settings.plist; sourceTree = "<group>"; };
 		CF762EC51A1D366E0018C292 /* MSDateOffset.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MSDateOffset.h; sourceTree = "<group>"; };
 		CF762EC71A1D36950018C292 /* MSDateOffset.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MSDateOffset.m; sourceTree = "<group>"; };
 		E8146640165BE0150038EBE5 /* MSLogin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MSLogin.h; sourceTree = "<group>"; };
@@ -281,7 +283,7 @@
 		E8F33B2916166837002DD7C6 /* MSSerializer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MSSerializer.h; sourceTree = "<group>"; };
 		E8F33B2B1616684F002DD7C6 /* MSPredicateTranslator.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MSPredicateTranslator.h; sourceTree = "<group>"; };
 		E8F33B2C1616684F002DD7C6 /* MSPredicateTranslator.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MSPredicateTranslator.m; sourceTree = "<group>"; };
-		E8F33B34161668C4002DD7C6 /* WindowsAzureMobileServicesFunctionalTests.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = WindowsAzureMobileServicesFunctionalTests.m; sourceTree = "<group>"; };
+		E8F33B34161668C4002DD7C6 /* WindowsAzureMobileServicesFunctionalTests.m */ = {isa = PBXFileReference; explicitFileType = sourcecode.c.objc; fileEncoding = 4; path = WindowsAzureMobileServicesFunctionalTests.m; sourceTree = "<group>"; };
 		E8F33B36161668DA002DD7C6 /* MSJSONSerializerTests.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MSJSONSerializerTests.m; sourceTree = "<group>"; };
 		E8F33B38161668E4002DD7C6 /* MSPredicateTranslatorTests.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MSPredicateTranslatorTests.m; sourceTree = "<group>"; };
 		E8F33B3A161668ED002DD7C6 /* MSQueryTests.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MSQueryTests.m; sourceTree = "<group>"; };
@@ -549,6 +551,7 @@
 			children = (
 				E8F33AF71616659C002DD7C6 /* WindowsAzureMobileServicesTests-Info.plist */,
 				E8F33AF81616659C002DD7C6 /* InfoPlist.strings */,
+				CF4D49911A36334C006AEB70 /* settings.plist */,
 			);
 			name = "Supporting Files";
 			sourceTree = "<group>";
@@ -686,6 +689,7 @@
 				E8E3790C161F766400C13F00 /* Headers */,
 				E8F33AD91616659C002DD7C6 /* Copy Files */,
 				E8E37A27161FAA9600C13F00 /* ShellScript */,
+				CF48157A1A363A330044D898 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -745,11 +749,19 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		CF48157A1A363A330044D898 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E8F33AE91616659C002DD7C6 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				A28224B4192AD00E00EF8743 /* CoreDataTestModel.xcdatamodeld in Resources */,
+				CF4D49921A363537006AEB70 /* settings.plist in Resources */,
 				E8F33AFA1616659C002DD7C6 /* InfoPlist.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

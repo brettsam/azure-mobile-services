@@ -30,7 +30,7 @@
         <attribute name="id" optional="YES" attributeType="String" syncable="YES"/>
         <attribute name="properties" optional="YES" attributeType="Binary" syncable="YES"/>
         <attribute name="tableKind" optional="YES" attributeType="Integer 16" defaultValueString="0" syncable="YES"/>
-        <relationship name="operationId" maxCount="1" deletionRule="No Action" destinationEntity="MS_TableOperations" inverseName="errors" inverseEntity="MS_TableOperations" syncable="YES"/>
+        <relationship name="operationId" optional="YES" maxCount="1" deletionRule="No Action" destinationEntity="MS_TableOperations" syncable="YES"/>
     </entity>
     <entity name="MS_TableOperations" syncable="YES">
         <attribute name="id" optional="YES" attributeType="Integer 64" defaultValueString="0" syncable="YES"/>
@@ -38,7 +38,6 @@
         <attribute name="properties" optional="YES" attributeType="Binary" syncable="YES"/>
         <attribute name="table" optional="YES" attributeType="String" syncable="YES"/>
         <attribute name="tableKind" optional="YES" attributeType="Integer 16" defaultValueString="0" syncable="YES"/>
-        <relationship name="errors" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="MS_TableOperationErrors" inverseName="operationId" inverseEntity="MS_TableOperationErrors" syncable="YES"/>
     </entity>
     <entity name="TodoItem" syncable="YES">
         <attribute name="id" optional="YES" attributeType="String" syncable="YES"/>
@@ -55,7 +54,7 @@
         <element name="ManySystemColumns" positionX="-252" positionY="27" width="128" height="148"/>
         <element name="MS_TableConfig" positionX="160" positionY="192" width="128" height="75"/>
         <element name="MS_TableOperationErrors" positionX="153" positionY="-189" width="128" height="103"/>
-        <element name="MS_TableOperations" positionX="-63" positionY="-189" width="128" height="133"/>
+        <element name="MS_TableOperations" positionX="-63" positionY="-189" width="128" height="120"/>
         <element name="TodoItem" positionX="-324" positionY="-45" width="128" height="103"/>
         <element name="TodoNoVersion" positionX="-234" positionY="-126" width="128" height="73"/>
     </elements>

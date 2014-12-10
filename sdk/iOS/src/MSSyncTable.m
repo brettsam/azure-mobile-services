@@ -69,6 +69,8 @@
         
         completion(error);
     }
+    
+    // we may manipulate the query so we make a copy to preserve the user's version
     [self.client.syncContext pullWithQuery:query queryId:queryId completion:completion];
 }
 

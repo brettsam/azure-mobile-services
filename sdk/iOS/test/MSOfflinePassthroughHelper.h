@@ -15,6 +15,11 @@
 @property (nonatomic) NSInteger upsertedItems;
 @property (nonatomic) NSInteger deleteCalls;
 @property (nonatomic) NSInteger deletedItems;
+@property (nonatomic) NSInteger readTableCalls;
+@property (nonatomic) NSInteger readTableItems;
+@property (nonatomic, copy) void (^operationCompletedHandler)(NSDictionary *item, NSError *error);
+
+@property (nonatomic) BOOL errorOnReadTableWithItemIdOrError;
 
 @property (nonatomic, strong) NSMutableDictionary *data;
 

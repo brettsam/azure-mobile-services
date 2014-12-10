@@ -67,17 +67,6 @@
     [self didChangeValueForKey:@"isFinished"];
 }
 
-// Check if the operation was cancelled and if so, begin winding down
--(BOOL) checkIsCanceled
-{
-    if (self.isCancelled) {
-        self.error = [self errorWithDescription:@"Push cancelled" code:MSPushAbortedUnknown internalError:nil];
-        [self completeOperation];
-    }
-    
-    return self.isCancelled;
-}
-
 -(void) start
 {
     if (finished_) {
@@ -94,14 +83,18 @@
     
     if (self.queryId) {
         self.query.table.systemProperties |= MSSystemPropertyUpdatedAt;
+        NSSortDescriptor *orderByUpdatedAt = [NSSortDescriptor sortDescriptorWithKey:MSSystemColumnUpdatedAt ascending:YES];
+        self.query.orderBy = [NSArray arrayWithObject:orderByUpdatedAt];
+        
+        __block NSError *localDataSourceError;
         dispatch_sync(self.dispatchQueue, ^{
-            NSError *localDataSourceError;
             [self updateQueryFromDeltaTokenOrError:&localDataSourceError];
-            if([self callCompletionIfError:localDataSourceError])
-            {
-                return;
-            }
         });
+        
+        if([self callCompletionIfError:localDataSourceError])
+        {
+            return;
+        }
     }
     
     [self processPullOperation];
@@ -113,7 +106,7 @@
     // Read from server
     [self.query readInternalWithFeatures:MSFeatureOffline completion:^(MSQueryResult *result, NSError *error) {
         // If error, or no results we can stop processing
-        if (error || !result || !result.items || result.items.count == 0) {
+        if (error || result.items.count == 0) {
             if (self.completion) {
                 [self.callbackQueue addOperationWithBlock:^{
                     self.completion(error);
@@ -124,7 +117,7 @@
         }
         
         // Update our local store (we need to block inbound operations while we do this)
-        dispatch_sync(self.dispatchQueue, ^{
+        dispatch_async(self.dispatchQueue, ^{
             NSError *localDataSourceError;
             
             // Check if have any pending ops on this table
@@ -137,14 +130,18 @@
                 if (self.queryId) {
                     self.maxDate = [self.maxDate laterDate:(NSDate *)obj[MSSystemColumnUpdatedAt]];
                 }
-                BOOL isDeleted =  ((NSNumber *)obj[MSSystemColumnDeleted]).boolValue;
+                BOOL isDeleted = NO;
+                NSObject *isDeletedObj = obj[MSSystemColumnDeleted];
+                if (isDeletedObj && isDeletedObj != [NSNull null]) {
+                    isDeleted = ((NSNumber *)isDeletedObj).boolValue;
+                }
                 
                 NSPredicate *predicate = [NSPredicate predicateWithFormat:@"%K == %@", @"itemId", obj[MSSystemColumnId]];
                 NSArray *matchingRecords = [pendingOps filteredArrayUsingPredicate:predicate];
                 
                 // we want to ignore items that have been touched since the Pull was started
                 if (matchingRecords.count == 0) {
-                    if (isDeleted == YES) {
+                    if (isDeleted) {
                         [itemIdsToDelete addObject:obj[MSSystemColumnId]];
                     }
                     else {
@@ -207,6 +204,8 @@
     self.deltaToken = self.maxDate;
 }
 
+/// Updates self.query.predicate with the date stored in self.deltaToken. The deltaToken is loaded from
+/// the syncContext's dataSource, if required. This method must be called on self.dispatchQueue.
 -(void) updateQueryFromDeltaTokenOrError:(NSError **)error
 {
     // only load from local database if nil; we update it when writing
@@ -217,7 +216,12 @@
         if (error && *error) {
             return;
         }
-        self.deltaToken = [formatter dateFromString:deltaTokenDict[@"value"]];
+        if (deltaTokenDict) {
+            self.deltaToken = [formatter dateFromString:deltaTokenDict[@"value"]];
+        }
+        else {
+            self.deltaToken = [NSDate dateWithTimeIntervalSince1970:0.0];
+        }
     }
     
     self.query.fetchOffset = -1;
@@ -252,34 +256,6 @@
         [self completeOperation];
     }
     return isError;
-}
-
-/// Builds a NSError containing the errors related to a push operation
-- (NSError *) errorWithDescription:(NSString *)description code:(NSInteger)code internalError:(NSError *)error
-{
-    NSMutableDictionary *userInfo = [@{ NSLocalizedDescriptionKey: description } mutableCopy];
-    
-    if (error) {
-        [userInfo setObject:error forKey:NSUnderlyingErrorKey];
-    }
-    
-    return [NSError errorWithDomain:MSErrorDomain code:code userInfo:userInfo];
-}
-
-/// Builds a NSError containing the errors related to a push operation
--(NSError *) errorWithDescription:(NSString *)description code:(NSInteger)code pushErrors:(NSArray *)pushErrors internalError:(NSError *)error
-{
-    NSMutableDictionary *userInfo = [@{ NSLocalizedDescriptionKey: description } mutableCopy];
-    
-    if (error) {
-        [userInfo setObject:error forKey:NSUnderlyingErrorKey];
-    }
-    
-    if (pushErrors && pushErrors.count > 0) {
-        [userInfo setObject:pushErrors forKey:MSErrorPushResultKey];
-    }
-    
-    return [NSError errorWithDomain:MSErrorDomain code:code userInfo:userInfo];
 }
 
 - (BOOL) isConcurrent {

@@ -82,14 +82,11 @@ static NSOperationQueue *pushQueue_;
 -(void) pushWithCompletion:(MSSyncBlock)completion
 {
     // TODO: Allow users to cancel operations
-    
-    dispatch_async(writeOperationQueue, ^{
-        MSQueuePushOperation *push = [[MSQueuePushOperation alloc] initWithSyncContext:self
+    MSQueuePushOperation *push = [[MSQueuePushOperation alloc] initWithSyncContext:self
                                                                          dispatchQueue:writeOperationQueue
                                                                             completion:completion];
         
-        [pushQueue_ addOperation:push];
-    });
+    [pushQueue_ addOperation:push];
 }
 
 
@@ -300,6 +297,7 @@ static NSOperationQueue *pushQueue_;
 {
     // We want to throw on unsupported fields so we can change this decision later
     NSError *error;
+    NSDictionary *isDeletedParams = [MSSyncContext dictionary:query.parameters entriesForCaseInsensitiveKey:@"__includedeleted"];
     if (query.selectFields) {
         error = [self errorWithDescription:@"Use of selectFields in not supported in pullWithQuery:"
                               andErrorCode:MSInvalidParameter];
@@ -307,9 +305,6 @@ static NSOperationQueue *pushQueue_;
     else if (query.includeTotalCount) {
         error = [self errorWithDescription:@"Use of includeTotalCount is not supported in pullWithQuery:"
                               andErrorCode:MSInvalidParameter];
-    }
-    else if ([MSSyncContext dictionary:query.parameters containsCaseInsensitiveKey:@"__includedeleted"]){
-        error = [self errorWithDescription:@"Use of '__includeDeleted' is not supported in pullWithQuery parameters:" andErrorCode:MSInvalidParameter];
     }
     else if ([MSSyncContext dictionary:query.parameters containsCaseInsensitiveKey:@"__systemproperties"]) {
         error = [self errorWithDescription:@"Use of '__systemProperties' is not supported in pullWithQuery parameters:" andErrorCode:MSInvalidParameter];
@@ -323,6 +318,18 @@ static NSOperationQueue *pushQueue_;
         // MSQuery itself should disallow this, but for safety verify we have a table object
         error = [self errorWithDescription:@"Missing required syncTable object in query"
                               andErrorCode:MSInvalidParameter];
+    }
+    
+    if (!error && isDeletedParams.count > 0) {
+        // if there are any __includeDeleted params set to NO we want to throw because we would overwrite them
+        for (NSObject *value in isDeletedParams.allValues) {
+            BOOL paramValue = ((NSNumber *)value).boolValue;
+            if (!paramValue) {
+                error = [self errorWithDescription:@"The '__includeDeleted' parameter value must be YES if used for pullWithQuery:"
+                                      andErrorCode:MSInvalidParameter];
+                break;
+            }
+        }
     }
     
     // Return error if possible, return on calling
@@ -384,8 +391,7 @@ static NSOperationQueue *pushQueue_;
         }
         else {
             // TODO: Allow users to cancel operations
-            dispatch_async(writeOperationQueue, ^{
-                MSQueuePullOperation *pull = [[MSQueuePullOperation alloc] initWithSyncContext:self
+            MSQueuePullOperation *pull = [[MSQueuePullOperation alloc] initWithSyncContext:self
                                                                                          query:query
                                                                                        queryId:queryId
                                                                                  dispatchQueue:writeOperationQueue
@@ -393,8 +399,7 @@ static NSOperationQueue *pushQueue_;
                                                                                     completion:completion];
 
                 
-                [pushQueue_ addOperation:pull];
-            });
+            [pushQueue_ addOperation:pull];
         }
     });
 }
@@ -426,9 +431,9 @@ static NSOperationQueue *pushQueue_;
     });
 }
 
-+ (NSString *) createKeyFromTable:(NSString *) table queryId:(NSString*) key
++ (NSString *) createKeyFromTable:(NSString *) table queryId:(NSString*) queryId
 {
-    return [NSString stringWithFormat:@"%@_%@", table, key];
+    return [NSString stringWithFormat:@"%@_%@", table, queryId];
 }
 
 + (BOOL) dictionary:(NSDictionary *)dictionary containsCaseInsensitiveKey:(NSString *)key
@@ -441,6 +446,16 @@ static NSOperationQueue *pushQueue_;
     return NO;
 }
 
++ (NSDictionary *) dictionary:(NSDictionary *)dictionary entriesForCaseInsensitiveKey:(NSString *)key
+{
+    NSMutableDictionary *matches = [NSMutableDictionary dictionary];
+    for (NSString *object in dictionary.allKeys) {
+        if ([object caseInsensitiveCompare:key] == NSOrderedSame) {
+            [matches setValue:dictionary[object] forKey:object];
+        }
+    }
+    return matches;
+}
 
 # pragma mark * NSError helpers
 
