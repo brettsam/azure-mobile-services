@@ -107,6 +107,7 @@
     [self.query readInternalWithFeatures:MSFeatureOffline completion:^(MSQueryResult *result, NSError *error) {
         // If error, or no results we can stop processing
         if (error || result.items.count == 0) {
+            self.query.predicate = self.originalPredicate;
             if (self.completion) {
                 [self.callbackQueue addOperationWithBlock:^{
                     self.completion(error);

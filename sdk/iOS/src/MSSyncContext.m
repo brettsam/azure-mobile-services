@@ -7,7 +7,6 @@
 #import "MSClientInternal.h"
 #import "MSTable.h"
 #import "MSTableOperationInternal.h"
-#import "MSTableOperationError.h"
 #import "MSJSONSerializer.h"
 #import "MSQuery.h"
 #import "MSQueryInternal.h"
