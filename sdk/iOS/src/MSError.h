@@ -121,6 +121,10 @@ extern NSString *const MSErrorPushResultKey;
 /// purge have pending changes that need to be pushed to the server
 #define MSPurgeAbortedPendingChanges            -1180
 
+/// Indicates that the pull was aborted (not all records were retrieved from the
+/// server) for an unknown reason.
+#define MSPullAbortedUnknown                    -1190
+
 /// Indicates that the response from the Windows Azure Mobile Service did not
 /// include an item as expected.
 #define MSExpectedItemWithResponse              -1201

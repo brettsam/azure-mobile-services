@@ -14,6 +14,7 @@
 #import "MSQueryInternal.h"
 #import "MSNaiveISODateFormatter.h"
 #import "MSDateOffset.h"
+#import "MSTableConfigValue.h"
 
 @interface MSQueuePullOperation()
 
@@ -28,6 +29,7 @@
 @property (nonatomic, strong)   NSDate *maxDate;
 @property (nonatomic, strong)   NSDate *deltaToken;
 @property (nonatomic, strong)   NSPredicate *originalPredicate;
+@property (nonatomic, strong)   MSTableConfigValue *deltaTokenEntity;
 
 @end
 
@@ -49,7 +51,7 @@
         _callbackQueue = callbackQueue;
         _completion = [completion copy];
         _recordsProcessed = 0;
-        _maxDate = [NSDate distantPast];
+        _maxDate = [NSDate dateWithTimeIntervalSince1970:0.0];
         _deltaToken = nil;
         _originalPredicate = self.query.predicate;
     }
@@ -59,12 +61,23 @@
 - (void) completeOperation {
     [self willChangeValueForKey:@"isFinished"];
     [self willChangeValueForKey:@"isExecuting"];
-        
+    
     executing_ = NO;
     finished_ = YES;
     
     [self didChangeValueForKey:@"isExecuting"];
     [self didChangeValueForKey:@"isFinished"];
+}
+
+// Check if the operation was cancelled and if so, begin winding down
+-(BOOL) checkIsCanceled
+{
+    if (self.isCancelled) {
+        self.error = [self errorWithDescription:@"Pull cancelled" code:MSPullAbortedUnknown];
+        [self completeOperation];
+    }
+    
+    return self.isCancelled;
 }
 
 -(void) start
@@ -103,11 +116,17 @@
 /// For a given pending table operation, create the request to send it to the remote table
 - (void) processPullOperation
 {
+    if ([self checkIsCanceled]) {
+        return;
+    }
+    
     // Read from server
     [self.query readInternalWithFeatures:MSFeatureOffline completion:^(MSQueryResult *result, NSError *error) {
+        if ([self checkIsCanceled]) {
+            return;
+        }
         // If error, or no results we can stop processing
         if (error || result.items.count == 0) {
-            self.query.predicate = self.originalPredicate;
             if (self.completion) {
                 [self.callbackQueue addOperationWithBlock:^{
                     self.completion(error);
@@ -119,6 +138,10 @@
         
         // Update our local store (we need to block inbound operations while we do this)
         dispatch_async(self.dispatchQueue, ^{
+            if ([self checkIsCanceled]) {
+                return;
+            }
+            
             NSError *localDataSourceError;
             
             // Check if have any pending ops on this table
@@ -196,9 +219,8 @@
 -(void) upsertDeltaTokenOrError:(NSError **)error
 {
     NSDateFormatter *formatter = [MSNaiveISODateFormatter naiveISODateFormatter];
-    NSString *configQueryId = [self deltaTokenKey];
-    NSDictionary *delta = @{@"id":configQueryId, @"value":[formatter stringFromDate:self.maxDate]};
-    [self.syncContext.dataSource upsertItems:@[delta] table:self.syncContext.dataSource.configTableName orError:error];
+    self.deltaTokenEntity.value = [formatter stringFromDate:self.maxDate];
+    [self.syncContext.dataSource upsertItems:@[self.deltaTokenEntity.serialize] table:self.syncContext.dataSource.configTableName orError:error];
     if (error && *error) {
         return;
     }
@@ -212,15 +234,28 @@
     // only load from local database if nil; we update it when writing
     if (!self.deltaToken) {
         NSDateFormatter *formatter = [MSNaiveISODateFormatter naiveISODateFormatter];
-        NSString *configQueryId = [self deltaTokenKey];
-        NSDictionary *deltaTokenDict = [self.syncContext.dataSource readTable:self.syncContext.dataSource.configTableName withItemId:configQueryId orError:error];
+        MSSyncTable *configTable = [[MSSyncTable alloc] initWithName:self.syncContext.dataSource.configTableName client:self.syncContext.client];
+        NSPredicate *predicate = [NSPredicate predicateWithFormat:@"table == %@ && key == %@ && keyType == 'deltaToken'", self.query.table.name, self.queryId];
+        MSQuery *query = [[MSQuery alloc] initWithSyncTable:configTable predicate:predicate];
+        NSArray *results = [self.syncContext.dataSource readWithQuery:query orError:error].items;
         if (error && *error) {
             return;
         }
-        if (deltaTokenDict) {
-            self.deltaToken = [formatter dateFromString:deltaTokenDict[@"value"]];
+        if (results.count > 1) {
+            *error = [self errorWithDescription:@"Expected one delta token to be returned" code:MSPullAbortedUnknown];
+            return;
+        }
+        else if (results.count == 1) {
+            NSDictionary *deltaTokenDict = results[0];
+            self.deltaTokenEntity = [[MSTableConfigValue alloc] initWithSerializedItem:deltaTokenDict];
+            self.deltaToken = [formatter dateFromString:self.deltaTokenEntity.value];
         }
         else {
+            self.deltaTokenEntity = [MSTableConfigValue new];
+            self.deltaTokenEntity.table = self.query.table.name;
+            self.deltaTokenEntity.keyType = @"deltaToken";
+            self.deltaTokenEntity.key = self.queryId;
+            // we set the value right before we upsert it
             self.deltaToken = [NSDate dateWithTimeIntervalSince1970:0.0];
         }
     }
@@ -257,6 +292,12 @@
         [self completeOperation];
     }
     return isError;
+}
+
+- (NSError *) errorWithDescription:(NSString *)description code:(NSInteger)code
+{
+    NSMutableDictionary *userInfo = [@{ NSLocalizedDescriptionKey: description } mutableCopy];
+    return [NSError errorWithDomain:MSErrorDomain code:code userInfo:userInfo];
 }
 
 - (BOOL) isConcurrent {

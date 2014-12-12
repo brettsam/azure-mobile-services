@@ -294,26 +294,33 @@ static NSOperationQueue *pushQueue_;
 /// Verify our input is valid and try to pull our data down from the server
 - (void) pullWithQuery:(MSQuery *)query queryId:(NSString *)queryId completion:(MSSyncBlock)completion;
 {
+    // make a copy since we'll be modifying it internally
+    MSQuery *queryCopy = [query copy];
+    
     // We want to throw on unsupported fields so we can change this decision later
     NSError *error;
-    NSDictionary *isDeletedParams = [MSSyncContext dictionary:query.parameters entriesForCaseInsensitiveKey:@"__includedeleted"];
-    if (query.selectFields) {
+    NSDictionary *isDeletedParams = [MSSyncContext dictionary:queryCopy.parameters entriesForCaseInsensitiveKey:@"__includedeleted"];
+    if (queryCopy.selectFields) {
         error = [self errorWithDescription:@"Use of selectFields in not supported in pullWithQuery:"
                               andErrorCode:MSInvalidParameter];
     }
-    else if (query.includeTotalCount) {
+    else if (queryCopy.includeTotalCount) {
         error = [self errorWithDescription:@"Use of includeTotalCount is not supported in pullWithQuery:"
                               andErrorCode:MSInvalidParameter];
     }
-    else if ([MSSyncContext dictionary:query.parameters containsCaseInsensitiveKey:@"__systemproperties"]) {
+    else if (queryId && queryCopy.fetchOffset > 0) {
+        error = [self errorWithDescription: @"Use of fetchOffset is not supported when a queryId is specified"
+                              andErrorCode:MSInvalidParameter];
+    }
+    else if ([MSSyncContext dictionary:queryCopy.parameters containsCaseInsensitiveKey:@"__systemproperties"]) {
         error = [self errorWithDescription:@"Use of '__systemProperties' is not supported in pullWithQuery parameters:" andErrorCode:MSInvalidParameter];
     }
-    else if (query.syncTable) {
+    else if (queryCopy.syncTable) {
         // Otherwise we convert the sync table to a normal table
-        query.table = [[MSTable alloc] initWithName:query.syncTable.name client:query.syncTable.client];
-        query.syncTable = nil;
+        queryCopy.table = [[MSTable alloc] initWithName:queryCopy.syncTable.name client:queryCopy.syncTable.client];
+        queryCopy.syncTable = nil;
     }
-    else if (!query.table) {
+    else if (!queryCopy.table) {
         // MSQuery itself should disallow this, but for safety verify we have a table object
         error = [self errorWithDescription:@"Missing required syncTable object in query"
                               andErrorCode:MSInvalidParameter];
@@ -321,9 +328,8 @@ static NSOperationQueue *pushQueue_;
     
     if (!error && isDeletedParams.count > 0) {
         // if there are any __includeDeleted params set to NO we want to throw because we would overwrite them
-        for (NSObject *value in isDeletedParams.allValues) {
-            BOOL paramValue = ((NSNumber *)value).boolValue;
-            if (!paramValue) {
+        for (NSNumber *value in isDeletedParams.allValues) {
+            if (!value.boolValue) {
                 error = [self errorWithDescription:@"The '__includeDeleted' parameter value must be YES if used for pullWithQuery:"
                                       andErrorCode:MSInvalidParameter];
                 break;
@@ -341,24 +347,24 @@ static NSOperationQueue *pushQueue_;
     
     // Get the required system properties from the Store
     if ([self.dataSource respondsToSelector:@selector(systemPropetiesForTable:)]) {
-        query.table.systemProperties = [self.dataSource systemPropetiesForTable:query.table.name];
+        queryCopy.table.systemProperties = [self.dataSource systemPropetiesForTable:queryCopy.table.name];
     } else {
-        query.table.systemProperties = MSSystemPropertyVersion;
+        queryCopy.table.systemProperties = MSSystemPropertyVersion;
     }
     
     // add __includeDeleted
-    if (!query.parameters) {
-        query.parameters = @{@"__includeDeleted" : @YES};
+    if (!queryCopy.parameters) {
+        queryCopy.parameters = @{@"__includeDeleted" : @YES};
     } else {
-        NSMutableDictionary *mutableParameters = [query.parameters mutableCopy];
+        NSMutableDictionary *mutableParameters = [queryCopy.parameters mutableCopy];
         [mutableParameters setObject:@YES forKey:@"__includeDeleted"];
-        query.parameters = mutableParameters;
+        queryCopy.parameters = mutableParameters;
     }
     
-    query.table.systemProperties |= MSSystemPropertyDeleted;
+    queryCopy.table.systemProperties |= MSSystemPropertyDeleted;
     
     // Begin the actual pull request
-    [self pullWithQueryInternal:query queryId:queryId completion:completion];
+    [self pullWithQueryInternal:queryCopy queryId:queryId completion:completion];
 }
 
 /// Basic pull logic is:

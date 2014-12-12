@@ -56,6 +56,17 @@
     return NO;
 }
 
+- (MSSyncContextReadResult *) readWithQuery:(MSQuery *)query orError:(NSError **)error
+{
+    self.readWithQueryCalls++;
+    
+    MSSyncContextReadResult *results = [super readWithQuery:query orError:error];
+    self.readWithQueryItems += results.items.count;
+    
+    return results;
+}
+
+
 -(NSDictionary *) readTable:(NSString *)table withItemId:(NSString *)itemId orError:(NSError **)error
 {
     self.readTableCalls++;
@@ -80,6 +91,8 @@
     self.deletedItems = 0;
     self.readTableCalls = 0;
     self.readTableItems = 0;
+    self.readWithQueryCalls = 0;
+    self.readWithQueryItems = 0;
 }
 
 @end

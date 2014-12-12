@@ -24,6 +24,9 @@
     </entity>
     <entity name="MS_TableConfig" syncable="YES">
         <attribute name="id" optional="YES" attributeType="String" syncable="YES"/>
+        <attribute name="key" optional="YES" attributeType="String" syncable="YES"/>
+        <attribute name="keyType" optional="YES" attributeType="String" syncable="YES"/>
+        <attribute name="table" optional="YES" attributeType="String" syncable="YES"/>
         <attribute name="value" optional="YES" attributeType="String" syncable="YES"/>
     </entity>
     <entity name="MS_TableOperationErrors" syncable="YES">
@@ -52,7 +55,7 @@
     <elements>
         <element name="ColumnTypes" positionX="-54" positionY="54" width="128" height="208"/>
         <element name="ManySystemColumns" positionX="-252" positionY="27" width="128" height="148"/>
-        <element name="MS_TableConfig" positionX="160" positionY="192" width="128" height="75"/>
+        <element name="MS_TableConfig" positionX="160" positionY="192" width="128" height="120"/>
         <element name="MS_TableOperationErrors" positionX="153" positionY="-189" width="128" height="103"/>
         <element name="MS_TableOperations" positionX="-63" positionY="-189" width="128" height="118"/>
         <element name="TodoItem" positionX="-324" positionY="-45" width="128" height="103"/>

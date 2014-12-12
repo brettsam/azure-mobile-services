@@ -1058,7 +1058,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
 
         done = YES;
     }];
-    XCTAssertTrue([self waitForTest:10.1], @"Test timed out.");
+    XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
 }
 
 -(void) testIncrementalPullSuccess
@@ -1077,12 +1077,16 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
         XCTAssertNil(error, @"Error found: %@", error.description);
         XCTAssertEqual(offline.upsertCalls, 4);
         XCTAssertEqual(offline.upsertedItems, 6);
-        // readTable is only called once to get the initial deltaToken. otherwise, it's cached.
-        XCTAssertEqual(offline.readTableCalls, 1);
+        // readWithQuery is only called once to get the initial deltaToken. otherwise, it's cached.
+        // the other six calls are for each of the upserts (they all return nothing).
+        // TODO -- see if i can do this without creating a new MSSyncTable internally.
+        XCTAssertEqual(offline.readWithQueryCalls, 7);
+        XCTAssertEqual(offline.readWithQueryItems, 1);
+        XCTAssertEqual(offline.readTableCalls, 0);
         done = YES;
     }];
     
-    XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
+    XCTAssertTrue([self waitForTest:1000.1], @"Test timed out.");
     done = NO;
     XCTAssertEqual(3, filter.actualRequests.count);
 
@@ -1100,8 +1104,10 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
         XCTAssertNil(error, @"Error found: %@", error.description);
         XCTAssertEqual(offline.upsertCalls, 0);
         XCTAssertEqual(offline.upsertedItems, 0);
-        // readTable is only called once to get the initial deltaToken. otherwise, it's cached.
-        XCTAssertEqual(offline.readTableCalls, 1);
+        // readWithQuery is only called once to get the initial deltaToken. otherwise, it's cached.
+        XCTAssertEqual(offline.readWithQueryCalls, 1);
+        XCTAssertEqual(offline.readWithQueryItems, 1);
+        XCTAssertEqual(offline.readTableCalls, 0);
         done = YES;
     }];
     
@@ -1111,6 +1117,48 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     NSURLRequest *fourthRequest = (NSURLRequest *)filter.actualRequests[3];
     
     XCTAssertEqualObjects(fourthRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?$filter=(__updatedAt%20ge%20datetimeoffset'1999-12-04T16%3A44%3A59.000Z')&__includeDeleted=1&$orderby=__updatedAt%20asc&__systemProperties=__updatedAt,__deleted,__version");
+}
+
+-(void) testIncrementalPullWithSkipFails
+{
+    MSMultiRequestTestFilter *filter = [MSMultiRequestTestFilter testFilterWithStatusCodes:@[] data:@[] appendEmptyRequest:YES];
+    
+    MSClient *filteredClient = [client clientWithFilter:filter];
+    MSSyncTable *todoTable = [filteredClient syncTableWithName:@"TodoItem"];
+    MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
+    query.fetchOffset = 10;
+    
+    // without queryId, it should work
+    [todoTable pullWithQuery:query queryId:nil completion:^(NSError *error) {
+        XCTAssertNil(error, @"Error found: %@", error.description);
+        XCTAssertEqual(offline.upsertCalls, 0);
+        XCTAssertEqual(offline.upsertedItems, 0);
+        XCTAssertEqual(offline.readTableCalls, 0);
+        done = YES;
+    }];
+    
+    XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
+    done = NO;
+    XCTAssertEqual(1, filter.actualRequests.count);
+    
+    NSURLRequest *firstRequest = (NSURLRequest *)filter.actualRequests[0];
+    
+    XCTAssertEqualObjects(firstRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?$skip=10&__includeDeleted=1&__systemProperties=__deleted,__version");
+    
+    [offline resetCounts];
+    // with queryId, this should produce an error
+    [todoTable pullWithQuery:query queryId:@"test_1" completion:^(NSError *error) {
+        XCTAssertNotNil(error);
+        XCTAssertEqual(MSInvalidParameter, error.code);
+        XCTAssertEqual(offline.upsertCalls, 0);
+        XCTAssertEqual(offline.upsertedItems, 0);
+        // readTable is only called once to get the initial deltaToken. otherwise, it's cached.
+        XCTAssertEqual(offline.readTableCalls, 0);
+        done = YES;
+    }];
+    
+    XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
+    XCTAssertEqual(1, filter.actualRequests.count);
 }
 
 -(void) testPullWithBadQueryId
@@ -1152,6 +1200,11 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     query.parameters = @{@"__includeDeleted":@YES, @"__INCLUDEDELETED":@NO};
     [todoTable pullWithQuery:query queryId:nil completion:completion];
     XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
+    done = NO;
+    
+    query.parameters = @{@"__includeDeleted":@"NONSENSE"};
+    [todoTable pullWithQuery:query queryId:nil completion:completion];
+    XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
 }
 
 -(void) testIncrementalPullWithInsert
@@ -1164,6 +1217,8 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     MSClient *filteredClient = [client clientWithFilter:filter];
     MSSyncTable *todoTable = [filteredClient syncTableWithName:@"TodoItem"];
     MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
+    // we'll include a top here to make sure it works
+    query.fetchLimit = 50;
     
     // hijack the first filter request to insert
     __block NSURLRequest *firstPullRequest = nil;
@@ -1196,8 +1251,9 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     NSURLRequest *secondPullRequest = (NSURLRequest *)filter.actualRequests[0];
     NSURLRequest *thirdPullRequest = (NSURLRequest *)filter.actualRequests[1];
     
-    XCTAssertEqualObjects(firstPullRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?$filter=(__updatedAt%20ge%20datetimeoffset'1970-01-01T00%3A00%3A00.000Z')&__includeDeleted=1&$orderby=__updatedAt%20asc&__systemProperties=__updatedAt,__deleted,__version");    XCTAssertEqualObjects(secondPullRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?$filter=(__updatedAt%20ge%20datetimeoffset'1999-12-03T15%3A44%3A29.000Z')&__includeDeleted=1&$orderby=__updatedAt%20asc&__systemProperties=__updatedAt,__deleted,__version");
-    XCTAssertEqualObjects(thirdPullRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?$filter=(__updatedAt%20ge%20datetimeoffset'1999-12-07T15%3A44%3A28.000Z')&__includeDeleted=1&$orderby=__updatedAt%20asc&__systemProperties=__updatedAt,__deleted,__version");
+    XCTAssertEqualObjects(firstPullRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?$filter=(__updatedAt%20ge%20datetimeoffset'1970-01-01T00%3A00%3A00.000Z')&$orderby=__updatedAt%20asc&__includeDeleted=1&$top=50&__systemProperties=__updatedAt,__deleted,__version");
+    XCTAssertEqualObjects(secondPullRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?$filter=(__updatedAt%20ge%20datetimeoffset'1999-12-03T15%3A44%3A29.000Z')&$orderby=__updatedAt%20asc&__includeDeleted=1&$top=50&__systemProperties=__updatedAt,__deleted,__version");
+    XCTAssertEqualObjects(thirdPullRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?$filter=(__updatedAt%20ge%20datetimeoffset'1999-12-07T15%3A44%3A28.000Z')&$orderby=__updatedAt%20asc&__includeDeleted=1&$top=50&__systemProperties=__updatedAt,__deleted,__version");
 
     XCTAssertEqual(client.syncContext.pendingOperationsCount, 1);
 }

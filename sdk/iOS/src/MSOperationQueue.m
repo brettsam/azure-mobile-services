@@ -101,7 +101,7 @@
     [self.dataSource deleteItemsWithIds:[NSArray arrayWithObject:[NSNumber numberWithInteger:operation.operationId]]
                                   table:[self.dataSource operationTableName]
                                 orError:error];
-    if (error) {
+    if (error && *error) {
         return;
     }
     // Make sure to clean up any lock if one existed
