@@ -10,21 +10,13 @@
 
 #pragma mark - Initialization
 
-- (id) init {
-    self = [super init];
-    if (self) {
-        _id = [MSJSONSerializer generateGUID];
-    }
-    return self;
-}
-
 - (id) initWithSerializedItem:(NSDictionary *)item
 {
-    self = [self init];
+    self = [super init];
     if (self) {
-        _id = [item objectForKey:@"id"];
+        _id = [[item objectForKey:@"id"] integerValue];
         _table = [item objectForKey:@"table"];
-        _keyType = [item objectForKey:@"keyType"];
+        _keyType = [[item objectForKey:@"keyType"] integerValue];
         _key = [item objectForKey:@"key"];
         _value = [item objectForKey:@"value"];
     }
@@ -33,7 +25,7 @@
 
 - (NSDictionary *) serialize
 {
-    return @{ @"id": self.id, @"table": self.table, @"keyType":self.keyType, @"key": self.key, @"value": self.value };
+    return @{ @"id": [NSNumber numberWithInteger:self.id], @"table": self.table, @"keyType": [NSNumber numberWithInteger:self.keyType], @"key": self.key, @"value": self.value };
 }
 
 @end

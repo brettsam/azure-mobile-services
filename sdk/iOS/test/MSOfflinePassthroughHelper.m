@@ -61,8 +61,12 @@
     self.readWithQueryCalls++;
     
     MSSyncContextReadResult *results = [super readWithQuery:query orError:error];
-    self.readWithQueryItems += results.items.count;
+    if (self.errorOnReadWithQueryOrError) {
+        *error = [NSError errorWithDomain:@"TestError" code:1 userInfo:nil];
+        return nil;
+    }
     
+    self.readWithQueryItems += results.items.count;
     return results;
 }
 
@@ -75,11 +79,10 @@
     
     if (self.errorOnReadTableWithItemIdOrError) {
         *error = [NSError errorWithDomain:@"TestError" code:1 userInfo:nil];
-    }
-    else {
-        self.readTableItems += results.count;
+        return nil;
     }
     
+    self.readTableItems += results.count;
     return results;
 }
 

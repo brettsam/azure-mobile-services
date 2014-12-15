@@ -4,6 +4,10 @@
 
 #import <Foundation/Foundation.h>
 
+typedef NS_ENUM(NSUInteger, MSConfigKeyTypes) {
+    MSConfigKeyDeltaToken = 0
+};
+
 /// The *MSTableConfigValue* class represents internal configuration values used by the
 /// sync operations to maintain state.
 @interface MSTableConfigValue : NSObject
@@ -12,13 +16,13 @@
 ///@{
 
 /// Unique identifier for the config value
-@property (nonatomic, copy) NSString *id;
+@property (nonatomic) NSUInteger id;
 
 /// The name of the table the config value is for
 @property (nonatomic, copy) NSString *table;
 
 /// The type of key
-@property (nonatomic, copy) NSString *keyType;
+@property (nonatomic) MSConfigKeyTypes keyType;
 
 /// The key
 @property (nonatomic, copy) NSString *key;

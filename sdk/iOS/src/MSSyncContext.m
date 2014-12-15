@@ -308,6 +308,10 @@ static NSOperationQueue *pushQueue_;
         error = [self errorWithDescription:@"Use of includeTotalCount is not supported in pullWithQuery:"
                               andErrorCode:MSInvalidParameter];
     }
+    else if (queryId && queryCopy.orderBy.count > 0) {
+        error = [self errorWithDescription: @"Use of orderBy is not supported when a queryId is specified"
+                              andErrorCode:MSInvalidParameter];
+    }
     else if (queryId && queryCopy.fetchOffset > 0) {
         error = [self errorWithDescription: @"Use of fetchOffset is not supported when a queryId is specified"
                               andErrorCode:MSInvalidParameter];
@@ -362,6 +366,12 @@ static NSOperationQueue *pushQueue_;
     }
     
     queryCopy.table.systemProperties |= MSSystemPropertyDeleted;
+    
+    if (queryId) {
+        queryCopy.table.systemProperties |= MSSystemPropertyUpdatedAt;
+        NSSortDescriptor *orderByUpdatedAt = [NSSortDescriptor sortDescriptorWithKey:MSSystemColumnUpdatedAt ascending:YES];
+        queryCopy.orderBy = [NSArray arrayWithObject:orderByUpdatedAt];
+    }
     
     // Begin the actual pull request
     [self pullWithQueryInternal:queryCopy queryId:queryId completion:completion];

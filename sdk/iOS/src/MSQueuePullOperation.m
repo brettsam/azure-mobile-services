@@ -95,10 +95,6 @@
     [self didChangeValueForKey:@"isExecuting"];
     
     if (self.queryId) {
-        self.query.table.systemProperties |= MSSystemPropertyUpdatedAt;
-        NSSortDescriptor *orderByUpdatedAt = [NSSortDescriptor sortDescriptorWithKey:MSSystemColumnUpdatedAt ascending:YES];
-        self.query.orderBy = [NSArray arrayWithObject:orderByUpdatedAt];
-        
         __block NSError *localDataSourceError;
         dispatch_sync(self.dispatchQueue, ^{
             [self updateQueryFromDeltaTokenOrError:&localDataSourceError];
@@ -235,25 +231,24 @@
     if (!self.deltaToken) {
         NSDateFormatter *formatter = [MSNaiveISODateFormatter naiveISODateFormatter];
         MSSyncTable *configTable = [[MSSyncTable alloc] initWithName:self.syncContext.dataSource.configTableName client:self.syncContext.client];
-        NSPredicate *predicate = [NSPredicate predicateWithFormat:@"table == %@ && key == %@ && keyType == 'deltaToken'", self.query.table.name, self.queryId];
+        NSPredicate *predicate = [NSPredicate predicateWithFormat:@"table == %@ && key == %@ && keyType == %ld", self.query.table.name, self.queryId, MSConfigKeyDeltaToken];
         MSQuery *query = [[MSQuery alloc] initWithSyncTable:configTable predicate:predicate];
         NSArray *results = [self.syncContext.dataSource readWithQuery:query orError:error].items;
         if (error && *error) {
             return;
         }
-        if (results.count > 1) {
-            *error = [self errorWithDescription:@"Expected one delta token to be returned" code:MSPullAbortedUnknown];
-            return;
-        }
-        else if (results.count == 1) {
-            NSDictionary *deltaTokenDict = results[0];
+        
+        NSDictionary *deltaTokenDict = results.count > 0 ? results[0] : nil;
+        
+        if (deltaTokenDict) {
             self.deltaTokenEntity = [[MSTableConfigValue alloc] initWithSerializedItem:deltaTokenDict];
             self.deltaToken = [formatter dateFromString:self.deltaTokenEntity.value];
         }
         else {
             self.deltaTokenEntity = [MSTableConfigValue new];
+            self.deltaTokenEntity.id = [self getNextConfigValueId];
             self.deltaTokenEntity.table = self.query.table.name;
-            self.deltaTokenEntity.keyType = @"deltaToken";
+            self.deltaTokenEntity.keyType = MSConfigKeyDeltaToken;
             self.deltaTokenEntity.key = self.queryId;
             // we set the value right before we upsert it
             self.deltaToken = [NSDate dateWithTimeIntervalSince1970:0.0];
@@ -271,6 +266,33 @@
         else {
             self.query.predicate = updatedAt;
         }
+    }
+}
+
+/// Return the highest id currently in the table + 1. This API should not be called in parallel with
+/// an insert function.
+-(NSInteger) getNextConfigValueId
+{
+    MSSyncTable *table = [[MSSyncTable alloc] initWithName:self.syncContext.dataSource.configTableName client:self.syncContext.client];
+    MSQuery *query = [[MSQuery alloc] initWithSyncTable:table];
+    
+    // We want the highest id from the DB, but no records
+    query.fetchLimit = 1;
+    [query orderByDescending:@"id"];
+    
+    NSError *error;
+    MSSyncContextReadResult *result = [self.syncContext.dataSource readWithQuery:query orError:&error];
+    
+    // Return -1 if count fails
+    if (error) {
+        return -1;
+    }
+    
+    if (result.items && result.items.count > 0) {
+        NSDictionary *item = [result.items objectAtIndex:0];
+        return [[item objectForKey:@"id"] integerValue] + 1;
+    } else {
+        return 1;
     }
 }
 
@@ -296,7 +318,7 @@
 
 - (NSError *) errorWithDescription:(NSString *)description code:(NSInteger)code
 {
-    NSMutableDictionary *userInfo = [@{ NSLocalizedDescriptionKey: description } mutableCopy];
+    NSDictionary *userInfo = @{ NSLocalizedDescriptionKey: description };
     return [NSError errorWithDomain:MSErrorDomain code:code userInfo:userInfo];
 }
 

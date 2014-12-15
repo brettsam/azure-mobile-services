@@ -22,6 +22,7 @@
 
 @property (nonatomic, copy) void (^operationCompletedHandler)(NSDictionary *item, NSError *error);
 
+@property (nonatomic) BOOL errorOnReadWithQueryOrError;
 @property (nonatomic) BOOL errorOnReadTableWithItemIdOrError;
 
 @property (nonatomic, strong) NSMutableDictionary *data;

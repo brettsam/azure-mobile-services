@@ -1081,7 +1081,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
         // the other six calls are for each of the upserts (they all return nothing).
         // TODO -- see if i can do this without creating a new MSSyncTable internally.
         XCTAssertEqual(offline.readWithQueryCalls, 7);
-        XCTAssertEqual(offline.readWithQueryItems, 1);
+        XCTAssertEqual(offline.readWithQueryItems, 0);
         XCTAssertEqual(offline.readTableCalls, 0);
         done = YES;
     }];
@@ -1105,7 +1105,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
         XCTAssertEqual(offline.upsertCalls, 0);
         XCTAssertEqual(offline.upsertedItems, 0);
         // readWithQuery is only called once to get the initial deltaToken. otherwise, it's cached.
-        XCTAssertEqual(offline.readWithQueryCalls, 1);
+        XCTAssertEqual(offline.readWithQueryCalls, 2);
         XCTAssertEqual(offline.readWithQueryItems, 1);
         XCTAssertEqual(offline.readTableCalls, 0);
         done = YES;
@@ -1153,6 +1153,49 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
         XCTAssertEqual(offline.upsertCalls, 0);
         XCTAssertEqual(offline.upsertedItems, 0);
         // readTable is only called once to get the initial deltaToken. otherwise, it's cached.
+        XCTAssertEqual(offline.readTableCalls, 0);
+        done = YES;
+    }];
+    
+    XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
+    XCTAssertEqual(1, filter.actualRequests.count);
+}
+
+-(void) testIncrementalPullWithOrderByFails
+{
+    MSMultiRequestTestFilter *filter = [MSMultiRequestTestFilter testFilterWithStatusCodes:@[] data:@[] appendEmptyRequest:YES];
+    
+    MSClient *filteredClient = [client clientWithFilter:filter];
+    MSSyncTable *todoTable = [filteredClient syncTableWithName:@"TodoItem"];
+    MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
+    NSSortDescriptor *orderByText = [NSSortDescriptor sortDescriptorWithKey:MSSystemColumnId ascending:NO];
+    query.orderBy = @[orderByText];
+    
+    // without queryId, it should work
+    [todoTable pullWithQuery:query queryId:nil completion:^(NSError *error) {
+        XCTAssertNil(error, @"Error found: %@", error.description);
+        XCTAssertEqual(offline.upsertCalls, 0);
+        XCTAssertEqual(offline.upsertedItems, 0);
+        XCTAssertEqual(offline.readTableCalls, 0);
+        done = YES;
+    }];
+    
+    XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
+    done = NO;
+    XCTAssertEqual(1, filter.actualRequests.count);
+    
+    NSURLRequest *firstRequest = (NSURLRequest *)filter.actualRequests[0];
+    
+    XCTAssertEqualObjects(firstRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?__includeDeleted=1&$orderby=id%20desc&__systemProperties=__deleted,__version");
+    
+    [offline resetCounts];
+    // with queryId, this should produce an error
+    [todoTable pullWithQuery:query queryId:@"test_1" completion:^(NSError *error) {
+        XCTAssertNotNil(error);
+        XCTAssertEqual(MSInvalidParameter, error.code);
+        XCTAssertEqual(offline.upsertCalls, 0);
+        XCTAssertEqual(offline.upsertedItems, 0);
+        XCTAssertEqual(offline.readWithQueryCalls, 0);
         XCTAssertEqual(offline.readTableCalls, 0);
         done = YES;
     }];
@@ -1364,50 +1407,6 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     XCTAssertEqualObjects(sixthRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?$skip=1&$filter=(__updatedAt%20ge%20datetimeoffset'2000-01-02T00%3A00%3A00.000Z')&$orderby=__updatedAt%20asc&__includeDeleted=1&__systemProperties=__updatedAt,__deleted,__version");
 }
 
--(void) testIncrementalPullOverridesOrderBy
-{
-    MSMultiRequestTestFilter *filter = [MSMultiRequestTestFilter testFilterWithStatusCodes:@[@200] data:@[@"[]"] appendEmptyRequest:YES];
-    
-    MSClient *filteredClient = [client clientWithFilter:filter];
-    MSSyncTable *todoTable = [filteredClient syncTableWithName:@"TodoItem"];
-    MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
-    [query orderByDescending:@"text"];
-    [query orderByAscending:@"something"];
-    
-    // first try this with no query key; it should include the specified orderbys
-    [todoTable pullWithQuery:query queryId:nil completion:^(NSError *error) {
-        XCTAssertNil(error, @"Error found: %@", error.description);
-        XCTAssertEqual(offline.upsertCalls, 0);
-        XCTAssertEqual(offline.upsertedItems, 0);
-        done = YES;
-    }];
-    
-    XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
-    done = NO;
-    NSURLRequest *firstRequest = (NSURLRequest *)filter.actualRequests[0];
-    XCTAssertEqual(1, filter.actualRequests.count);
-    XCTAssertEqualObjects(firstRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?__includeDeleted=1&$orderby=text%20desc,something%20asc&__systemProperties=__deleted,__version");
-    
-    // and now try with inc sync
-    // TODO: we shouldn't have to re-create this query
-    query = [[MSQuery alloc] initWithSyncTable:todoTable];
-    [query orderByDescending:@"text"];
-    [query orderByAscending:@"something"];
-    
-    [todoTable pullWithQuery:query queryId:@"test-1" completion:^(NSError *error) {
-        XCTAssertNil(error, @"Error found: %@", error.description);
-        XCTAssertEqual(offline.upsertCalls, 0);
-        XCTAssertEqual(offline.upsertedItems, 0);
-        done = YES;
-    }];
-    
-    XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
-    done = NO;
-    firstRequest = (NSURLRequest *)filter.actualRequests[1];
-    XCTAssertEqual(2, filter.actualRequests.count);
-    XCTAssertEqualObjects(firstRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?$filter=(__updatedAt%20ge%20datetimeoffset'1970-01-01T00%3A00%3A00.000Z')&__includeDeleted=1&$orderby=__updatedAt%20asc&__systemProperties=__updatedAt,__deleted,__version");
-}
-
 -(void) testIncrementalPullAppendsFilter
 {
     NSString* stringData1 = @"[{\"id\":\"one\",\"text\":\"MATCH\",\"__version\":\"1\",\"__deleted\":false,\"__updatedAt\":\"1999-12-03T15:44:29.0Z\"},{\"id\":\"two\",\"__version\":\"1\",\"__deleted\":false,\"text\":\"MATCH\", \"__updatedAt\":\"2000-01-01T00:00:00.0Z\"}]";
@@ -1447,7 +1446,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     MSSyncTable *todoTable = [testClient syncTableWithName:@"DoesNotMatter"];
     MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
     
-    offline.errorOnReadTableWithItemIdOrError = true;
+    offline.errorOnReadWithQueryOrError = true;
     
     // before the bug was fixed, an error would call the completion but continue to call the pull.
     // this fails with the bug but passes now that it's been fixed.
