@@ -1080,7 +1080,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
         // readWithQuery is only called once to get the initial deltaToken. otherwise, it's cached.
         // the other six calls are for each of the upserts (they all return nothing).
         // TODO -- see if i can do this without creating a new MSSyncTable internally.
-        XCTAssertEqual(offline.readWithQueryCalls, 7);
+        XCTAssertEqual(offline.readWithQueryCalls, 6);
         XCTAssertEqual(offline.readWithQueryItems, 0);
         XCTAssertEqual(offline.readTableCalls, 0);
         done = YES;
@@ -1202,23 +1202,6 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     
     XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
     XCTAssertEqual(1, filter.actualRequests.count);
-}
-
--(void) testPullWithBadQueryId
-{
-    MSClient *thisClient = [client copy];
-    MSSyncTable *todoTable = [thisClient syncTableWithName:@"TodoItem"];
-    MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
-    
-    [todoTable pullWithQuery:query queryId:@"testwith|badchar" completion:^(NSError *error) {
-        XCTAssertNotNil(error);
-        XCTAssertEqual(error.code, MSInvalidQueryId);
-        XCTAssertEqual(offline.upsertCalls, 0, @"Unexpected number of upsert calls");
-        XCTAssertEqual(offline.upsertedItems, 0, @"Unexpected number of upsert calls");
-        done = YES;
-    }];
-    
-    XCTAssertTrue([self waitForTest:30.0], @"Test timed out.");
 }
 
 -(void) testPullWithIncludeDeletedReturnsErrorIfNotTrue

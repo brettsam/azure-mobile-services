@@ -246,7 +246,6 @@
         }
         else {
             self.deltaTokenEntity = [MSTableConfigValue new];
-            self.deltaTokenEntity.id = [self getNextConfigValueId];
             self.deltaTokenEntity.table = self.query.table.name;
             self.deltaTokenEntity.keyType = MSConfigKeyDeltaToken;
             self.deltaTokenEntity.key = self.queryId;
@@ -267,38 +266,6 @@
             self.query.predicate = updatedAt;
         }
     }
-}
-
-/// Return the highest id currently in the table + 1. This API should not be called in parallel with
-/// an insert function.
--(NSInteger) getNextConfigValueId
-{
-    MSSyncTable *table = [[MSSyncTable alloc] initWithName:self.syncContext.dataSource.configTableName client:self.syncContext.client];
-    MSQuery *query = [[MSQuery alloc] initWithSyncTable:table];
-    
-    // We want the highest id from the DB, but no records
-    query.fetchLimit = 1;
-    [query orderByDescending:@"id"];
-    
-    NSError *error;
-    MSSyncContextReadResult *result = [self.syncContext.dataSource readWithQuery:query orError:&error];
-    
-    // Return -1 if count fails
-    if (error) {
-        return -1;
-    }
-    
-    if (result.items && result.items.count > 0) {
-        NSDictionary *item = [result.items objectAtIndex:0];
-        return [[item objectForKey:@"id"] integerValue] + 1;
-    } else {
-        return 1;
-    }
-}
-
--(NSString *)deltaTokenKey
-{
-    return [NSString stringWithFormat:@"deltaToken|%@|%@", self.query.table.name, self.queryId];
 }
 
 -(BOOL) callCompletionIfError:(NSError *)error

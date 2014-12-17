@@ -16,7 +16,7 @@ typedef NS_ENUM(NSUInteger, MSConfigKeyTypes) {
 ///@{
 
 /// Unique identifier for the config value
-@property (nonatomic) NSUInteger id;
+@property (nonatomic, copy) NSString *id;
 
 /// The name of the table the config value is for
 @property (nonatomic, copy) NSString *table;
