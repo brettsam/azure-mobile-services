@@ -61,19 +61,18 @@
 
 -(void)pullWithQuery:(MSQuery *)query queryId:(NSString *)queryId completion:(MSSyncBlock)completion
 {
-    // we may manipulate the query so we make a copy to preserve the user's version
     [self.client.syncContext pullWithQuery:query queryId:queryId completion:completion];
 }
 
--(void)purgeWithQuery:(MSQuery *)query completion:(MSSyncBlock)completion
+-(void)purgeWithQuery:(MSQuery *)query queryId:(NSString *)queryId force:(BOOL)force completion:(MSSyncBlock)completion
 {
     // If no query, purge all records in the table by default
     if (query == nil) {
         MSQuery *allRecords = [[MSQuery alloc] initWithSyncTable:self];
-        [self.client.syncContext purgeWithQuery:allRecords completion:completion];
+        [self.client.syncContext purgeWithQuery:allRecords queryId:queryId force:force completion:completion];
         
     } else {
-        [self.client.syncContext purgeWithQuery:query completion:completion];
+        [self.client.syncContext purgeWithQuery:query queryId:queryId force:force completion:completion];
     }
 }
 

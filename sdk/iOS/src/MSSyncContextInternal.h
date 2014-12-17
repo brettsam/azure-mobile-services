@@ -27,7 +27,7 @@
 
 -(void) pullWithQuery:(MSQuery *)query queryId:(NSString *)queryId completion:(MSSyncBlock)completion;
 
--(void) purgeWithQuery:(MSQuery *)query completion:(MSSyncBlock)completion;
+-(void) purgeWithQuery:(MSQuery *)query queryId:(NSString *)queryId force:(BOOL)force completion:(MSSyncBlock)completion;
 
 
 #pragma mark * Operation Helpers

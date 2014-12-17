@@ -102,7 +102,7 @@
 /// If query is nil, all records in the local table will be removed.
 /// Before local data is removed, a check will be made for pending operations on this table. If
 /// any are found the purge will be cancelled and an error returned.
--(void)purgeWithQuery:(MSQuery *)query completion:(MSSyncBlock)completion;
+-(void)purgeWithQuery:(MSQuery *)query queryId:(NSString *)queryId force:(BOOL)force completion:(MSSyncBlock)completion;
 
 /// @}
 
