@@ -14,6 +14,7 @@
 #import "MSQueuePullOperation.h"
 #import "MSNaiveISODateFormatter.h"
 #import "MSDateOffset.h"
+#import "MSTableConfigValue.h"
 
 @implementation MSSyncContext {
     dispatch_queue_t writeOperationQueue;
@@ -82,9 +83,9 @@ static NSOperationQueue *pushQueue_;
 {
     // TODO: Allow users to cancel operations
     MSQueuePushOperation *push = [[MSQueuePushOperation alloc] initWithSyncContext:self
-                                                                         dispatchQueue:writeOperationQueue
-                                                                            completion:completion];
-        
+                                                                     dispatchQueue:writeOperationQueue
+                                                                        completion:completion];
+    
     [pushQueue_ addOperation:push];
 }
 
@@ -407,13 +408,13 @@ static NSOperationQueue *pushQueue_;
         else {
             // TODO: Allow users to cancel operations
             MSQueuePullOperation *pull = [[MSQueuePullOperation alloc] initWithSyncContext:self
-                                                                                         query:query
-                                                                                       queryId:queryId
-                                                                                 dispatchQueue:writeOperationQueue
-                                                                                 callbackQueue:self.callbackQueue
-                                                                                    completion:completion];
-
-                
+                                                                                     query:query
+                                                                                   queryId:queryId
+                                                                             dispatchQueue:writeOperationQueue
+                                                                             callbackQueue:self.callbackQueue
+                                                                                completion:completion];
+            
+            
             [pushQueue_ addOperation:pull];
         }
     });
@@ -422,18 +423,40 @@ static NSOperationQueue *pushQueue_;
 /// In order to purge data from the local store, purge first checks if there are any pending operations for
 /// the specific table on the query. If there are, no purge is performed and an error returned to the user.
 /// Otherwise clear the local table of all macthing records
-- (void) purgeWithQuery:(MSQuery *)query completion:(MSSyncBlock)completion
+- (void) purgeWithQuery:(MSQuery *)query queryId:(NSString *)queryId force:(BOOL)force completion:(MSSyncBlock)completion
 {
     // purge needs exclusive access to the storage layer
     dispatch_async(writeOperationQueue, ^{
-        // Check if our table is dirty, if so, cancel the purge action
-        NSArray *tableOps = [self.operationQueue getOperationsForTable:query.syncTable.name item:nil];
-        
         NSError *error;
-        if (tableOps.count > 0) {
-            error = [self errorWithDescription:@"The table cannot be purged because it has pending operations"
-                                  andErrorCode:MSPurgeAbortedPendingChanges];
-        } else {
+        
+        // purge the queryId, if specified
+        if (queryId) {
+            NSPredicate *predicate = [NSPredicate predicateWithFormat:@"table == %@ && key == %@ && keyType == %ld", query.syncTable.name, queryId, MSConfigKeyDeltaToken];
+            MSSyncTable *configTable = [[MSSyncTable alloc] initWithName:self.dataSource.configTableName client:query.syncTable.client];
+            MSQuery *query = [[MSQuery alloc] initWithSyncTable:configTable predicate:predicate];
+            [self.dataSource deleteUsingQuery:query orError:&error];
+        }
+        
+        if (!error) {
+            // Check if our table is dirty
+            NSArray *tableOps = [self.operationQueue getOperationsForTable:query.syncTable.name item:nil];
+            
+            if (tableOps.count > 0) {
+                if (query.predicate || !force) {
+                    error = [self errorWithDescription:@"The table cannot be purged because it has pending operations"
+                                          andErrorCode:MSPurgeAbortedPendingChanges];
+                }
+                
+                if (!error) {
+                    // delete operations one-by-one, which will delete any errors
+                    for (int i = 0; i < tableOps.count; i++) {
+                        [self.operationQueue removeOperation:tableOps[i] orError:&error];
+                    }
+                }
+            }
+        }
+        
+        if (!error) {
             // We can safely delete all items on this table (no pending operations)
             [self.dataSource deleteUsingQuery:query orError:&error];
         }
