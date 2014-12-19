@@ -42,7 +42,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     
     // Enable offline mode
     client.syncContext = [[MSSyncContext alloc] initWithDelegate:offline dataSource:offline callback:nil];
-        
+    
     done = NO;
 }
 
@@ -59,7 +59,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     
     XCTAssertNotNil(table.client, @"table.client should not be nil.");
     XCTAssertTrue([table.name isEqualToString:@"SomeName"],
-                 @"table.name shouldbe 'SomeName'");
+                  @"table.name shouldbe 'SomeName'");
 }
 
 
@@ -207,7 +207,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
                             @"decimal": [NSDecimalNumber decimalNumberWithMantissa:6 exponent:2 isNegative:NO],
                             @"double": [NSNumber numberWithDouble:12.12],
                             @"data": [NSDate dateWithTimeIntervalSinceNow:0],
-                        };
+                            };
     
     // Insert the item
     done = NO;
@@ -316,7 +316,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
         done = YES;
     }];
     XCTAssertTrue([self waitForTest:1110.1], @"Test timed out.");
-
+    
     // Create the item
     item = @{ @"id": @"test2", @"name":@"test name" };
     
@@ -329,7 +329,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     
     XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
     
-    insertRanToServer = NO;    
+    insertRanToServer = NO;
     done = NO;
     [client.syncContext pushWithCompletion:^(NSError *error) {
         XCTAssertNil(error, @"error should have been nil.");
@@ -337,7 +337,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
         done = YES;
     }];
     XCTAssertTrue([self waitForTest:2000.1], @"Test timed out.");
-
+    
 }
 
 -(void) testInsertItemWithValidIdConflict
@@ -380,7 +380,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     [client.syncContext pushWithCompletion:^(NSError *error) {
         // Verify the call went to the server
         XCTAssertTrue(insertRanToServer, @"the insert call didn't go to the server");
-
+        
         // Verify we got the expected error results
         XCTAssertNotNil(error, @"error should not have been nil.");
         XCTAssertEqual(error.code, [@MSPushCompleteWithErrors integerValue], @"Unexpected error code");
@@ -520,11 +520,11 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     
     NSDictionary *item = @{ @"name": @"test" };
     [todoTable insert:item completion:^(NSDictionary *itemOne, NSError *error) {
-       [todoTable insert:itemOne completion:^(NSDictionary *itemTwo, NSError *error) {
-           XCTAssertNotNil(error, @"expected an error");
-           XCTAssertTrue(error.code == MSSyncTableInvalidAction, @"unexpected error code");
-           done = YES;
-       }];
+        [todoTable insert:itemOne completion:^(NSDictionary *itemTwo, NSError *error) {
+            XCTAssertNotNil(error, @"expected an error");
+            XCTAssertTrue(error.code == MSSyncTableInvalidAction, @"unexpected error code");
+            done = YES;
+        }];
     }];
     XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
 }
@@ -615,7 +615,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
         done = YES;
     }];
     XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
-
+    
     done = NO;
     item = @{ @"id": @"test1", @"text":@"updated name" };
     [todoTable update:item completion:^(NSError *error) {
@@ -826,7 +826,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
 {
     NSString* stringData = @"[{\"id\": \"one\", \"text\":\"first item\", \"__updatedAt\":\"1999-12-03T15:44:29.0Z\"},{\"id\": \"two\", \"text\":\"second item\", \"__updatedAt\":\"1999-12-03T15:44:29.0Z\"}]";
     MSMultiRequestTestFilter *filter = [MSMultiRequestTestFilter testFilterWithStatusCodes:@[@200] data:@[stringData] appendEmptyRequest:YES];
-
+    
     MSClient *filteredClient = [client clientWithFilter:filter];
     MSSyncTable *todoTable = [filteredClient syncTableWithName:@"TodoItem"];
     MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
@@ -842,7 +842,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     
     NSURLRequest *firstRequest = (NSURLRequest *)filter.actualRequests[0];
     NSURLRequest *secondRequest = (NSURLRequest *)filter.actualRequests[1];
-
+    
     XCTAssertEqualObjects(firstRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?__includeDeleted=1&__systemProperties=__deleted,__version");
     XCTAssertEqualObjects(secondRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?$skip=2&__includeDeleted=1&__systemProperties=__deleted,__version");
 }
@@ -864,7 +864,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
         XCTAssertEqual((int)offline.upsertedItems, 2, @"Unexpected number of upsert calls");
         done = YES;
     }];
-
+    
     XCTAssertTrue([self waitForTest:30.0], @"Test timed out.");
     
     NSURLRequest *firstRequest = (NSURLRequest *)filter.actualRequests[0];
@@ -905,7 +905,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     NSString *insertResponse = @"{\"id\": \"one\", \"text\":\"first item\"}";
     NSString *pullResponse = @"[{\"id\": \"one\", \"text\":\"first item\"},{\"id\": \"two\", \"text\":\"second item\"}]";
     MSMultiRequestTestFilter *testFilter = [MSMultiRequestTestFilter testFilterWithStatusCodes:@[@200,@200] data:@[insertResponse,pullResponse] appendEmptyRequest:@YES];
-
+    
     MSClient *filteredClient = [client clientWithFilter:testFilter];
     MSSyncTable *todoTable = [filteredClient syncTableWithName:TodoTableNoVersion];
     MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
@@ -938,29 +938,29 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
 {
     MSTestFilter *testFilter = [MSTestFilter testFilterWithStatusCode:200 data:@"[]"];
     __block NSURLRequest *actualRequest = nil;
-
+    
     testFilter.onInspectRequest = ^(NSURLRequest *request) {
         actualRequest = request;
         return request;
     };
     offline.upsertCalls = 0;
-
+    
     MSClient *filteredClient = [client clientWithFilter:testFilter];
     MSSyncTable *todoTable = [filteredClient syncTableWithName:@"TodoItem"];
     MSQuery *query = [todoTable query];
-
+    
     [todoTable pullWithQuery:query queryId:nil completion:^(NSError *error) {
         XCTAssertNil(error, @"Unexpected error: %@", error.description);
         XCTAssertNotNil(actualRequest);
-
+        
         NSString *featuresHeader = [actualRequest.allHTTPHeaderFields valueForKey:MSFeaturesHeaderName];
         XCTAssertNotNil(featuresHeader, @"actualHeader should not have been nil.");
         NSString *expectedFeatures = @"TQ,OL";
         XCTAssertTrue([featuresHeader isEqualToString:expectedFeatures], @"Header value (%@) was not as expected (%@)", featuresHeader, expectedFeatures);
-
+        
         done = YES;
     }];
-
+    
     XCTAssertTrue([self waitForTest:30.0], @"Test timed out.");
 }
 
@@ -968,7 +968,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
 {
     NSString* stringData = @"[{\"id\": \"one\", \"text\":\"first item\"},{\"id\": \"two\", \"text\":\"second item\"}]";
     MSMultiRequestTestFilter *testFilter = [MSMultiRequestTestFilter testFilterWithStatusCodes:@[@200] data:@[stringData] appendEmptyRequest:@YES];
-
+    
     offline.upsertCalls = 0;
     
     MSClient *filteredClient = [client clientWithFilter:testFilter];
@@ -1025,38 +1025,38 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     NSString* stringData = @"{\"id\": \"test1\", \"text\":\"test name\"}";
     MSTestFilter *testFilter = [MSTestFilter testFilterWithStatusCode:200 data:stringData];
     __block NSURLRequest *actualRequest = nil;
-
+    
     testFilter.onInspectRequest = ^(NSURLRequest *request) {
         actualRequest = request;
         return request;
     };
-
+    
     MSClient *filteredClient = [client clientWithFilter:testFilter];
     MSSyncTable *todoTable = [filteredClient syncTableWithName:@"TodoNoVersion"];
-
+    
     // Create the item
     NSDictionary *item = @{ @"id": @"test1", @"name":@"test name" };
-
+    
     // Insert the item
     done = NO;
     [todoTable insert:item completion:^(NSDictionary *item, NSError *error) {
         XCTAssertNil(error, @"error should have been nil.");
         done = YES;
     }];
-
+    
     XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
-
+    
     done = NO;
     actualRequest = nil;
     [client.syncContext pushWithCompletion:^(NSError *error) {
         XCTAssertNil(error, @"error should have been nil.");
         XCTAssertNotNil(actualRequest, @"actualRequest should not have been nil.");
-
+        
         NSString *featuresHeader = [actualRequest.allHTTPHeaderFields valueForKey:MSFeaturesHeaderName];
         XCTAssertNotNil(featuresHeader, @"actualHeader should not have been nil.");
         NSString *expectedFeatures = @"OL";
         XCTAssertTrue([featuresHeader isEqualToString:expectedFeatures], @"Header value (%@) was not as expected (%@)", featuresHeader, expectedFeatures);
-
+        
         done = YES;
     }];
     XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
@@ -1090,7 +1090,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     XCTAssertTrue([self waitForTest:1000.1], @"Test timed out.");
     done = NO;
     XCTAssertEqual(3, filter.actualRequests.count);
-
+    
     NSURLRequest *firstRequest = (NSURLRequest *)filter.actualRequests[0];
     NSURLRequest *secondRequest = (NSURLRequest *)filter.actualRequests[1];
     NSURLRequest *thirdRequest = (NSURLRequest *)filter.actualRequests[2];
@@ -1263,7 +1263,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
         firstPullRequest = request;
         return request;
     };
-
+    
     [todoTable pullWithQuery:query queryId:@"test-1" completion:^(NSError *error) {
         XCTAssertNil(error, @"Error found: %@", error.description);
         XCTAssertEqual(offline.upsertCalls, 6);
@@ -1281,7 +1281,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     XCTAssertEqualObjects(firstPullRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?$filter=(__updatedAt%20ge%20datetimeoffset'1970-01-01T00%3A00%3A00.000Z')&$orderby=__updatedAt%20asc&__includeDeleted=1&$top=50&__systemProperties=__updatedAt,__deleted,__version");
     XCTAssertEqualObjects(secondPullRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?$filter=(__updatedAt%20ge%20datetimeoffset'1999-12-03T15%3A44%3A29.000Z')&$orderby=__updatedAt%20asc&__includeDeleted=1&$top=50&__systemProperties=__updatedAt,__deleted,__version");
     XCTAssertEqualObjects(thirdPullRequest.URL.absoluteString, @"https://someUrl/tables/TodoItem?$filter=(__updatedAt%20ge%20datetimeoffset'1999-12-07T15%3A44%3A28.000Z')&$orderby=__updatedAt%20asc&__includeDeleted=1&$top=50&__systemProperties=__updatedAt,__deleted,__version");
-
+    
     XCTAssertEqual(client.syncContext.pendingOperationsCount, 1);
 }
 
@@ -1462,7 +1462,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
                  orError:&storageError];
     XCTAssertNil(storageError);
     
-    [todoTable purgeWithQuery:query queryId:nil force:NO completion:^(NSError *error) {
+    [todoTable purgeWithQuery:query completion:^(NSError *error) {
         XCTAssertNil(error, @"Unexpected error: %@", error.description);
         
         XCTAssertEqual(offline.deleteCalls, 1);
@@ -1472,14 +1472,14 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
         MSSyncContextReadResult *result = [offline readWithQuery:query orError:&storageError];
         XCTAssertNil(storageError);
         XCTAssertTrue(result.items.count == 0, @"Items should have been deleted");
-
+        
         NSDictionary *item = [offline readTable:TodoTableNoVersion withItemId:@"B" orError:&storageError];
         XCTAssertNil(storageError);
         XCTAssertNotNil(item, @"Item B should not have been deleted");
         
         done = YES;
     }];
-
+    
     XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
 }
 
@@ -1500,9 +1500,9 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     MSSyncTable *todoTable = [filteredClient syncTableWithName:TodoTableNoVersion];
     
     [testTable insert:@{ @"name": @"test one"} completion:^(NSDictionary *item, NSError *error) {
-        [todoTable purgeWithQuery:nil queryId:nil force:NO completion:^(NSError *error) {
+        [todoTable purgeWithQuery:nil completion:^(NSError *error) {
             XCTAssertNil(error, @"Unexpected error: %@", error.description);
-
+            
             XCTAssertEqual(offline.deleteCalls, 1);
             XCTAssertEqual(offline.deletedItems, 1);
             
@@ -1520,7 +1520,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     XCTAssertTrue([self waitForTest:30.0], @"Test timed out.");
 }
 
--(void) testPurgeDeltaTokenSuccess
+-(void) testForcePurgeSuccess
 {
     MSTestFilter *testFilter = [[MSTestFilter alloc] init];
     testFilter.ignoreNextFilter = YES;
@@ -1540,54 +1540,39 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     MSSyncTable *todoTable = [filteredClient syncTableWithName:TodoTableNoVersion];
     MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
     
-    void (^runTest)(NSString*, NSInteger, NSInteger) = ^(NSString *purgeQueryId, NSInteger expectedDeleteCalls, NSInteger expectedDeletedItems) {
-        [offline upsertItems:@[deltaToken.serialize] table:offline.configTableName orError:&storageError];
-        [offline upsertItems:@[@{ @"id": @"A"}] table:TodoTableNoVersion orError:&storageError];
-        [todoTable insert:@{ @"id": @"B"} completion:^(NSDictionary *item, NSError *error) {
-            MSSyncContextReadResult *result = [offline readWithQuery:query orError:&storageError];
-            XCTAssertNil(storageError);
-            XCTAssertEqual(result.items.count, 2);
-            [offline resetCounts];
-            // insert an error as well; operationId is incremented internally so we'll match it here
-            [offline upsertItems:@[@{ @"id": @"A", @"operationId":[NSNumber numberWithInt:operationId++]}] table:offline.errorTableName orError:&storageError];
-            [todoTable purgeWithQuery:nil queryId:purgeQueryId force:YES completion:^(NSError *error) {
-                NSError *storageError;
-                XCTAssertNil(error, @"Unexpected error: %@", error.description);
-                
-                XCTAssertEqual(offline.deleteCalls, expectedDeleteCalls);
-                XCTAssertEqual(offline.deletedItems, expectedDeletedItems);
-                XCTAssertEqual(filteredClient.syncContext.pendingOperationsCount, 0);
-                
-                // Verify item is missing as well
-                MSSyncContextReadResult *emptyResult = [offline readWithQuery:query orError:&storageError];
-                XCTAssertNil(storageError);
-                XCTAssertEqual(emptyResult.items.count, 0);
-                
-                NSDictionary *token = [offline readTable:offline.configTableName withItemId:tokenId orError:&storageError];
-                if ([purgeQueryId isEqualToString:@"test_id"]) {
-                    XCTAssertNil(token);
-                }
-                else {
-                    XCTAssertNotNil(token);
-                    XCTAssertEqual(token[@"key"], @"test_id");
-                }
-                done = YES;
-            }];
-        }];
-    };
+    [offline upsertItems:@[deltaToken.serialize] table:offline.configTableName orError:&storageError];
+    [offline upsertItems:@[@{ @"id": @"A"}] table:TodoTableNoVersion orError:&storageError];
+    [todoTable insert:@{ @"id": @"B"} completion:^(NSDictionary *item, NSError *error) {
+        MSSyncContextReadResult *result = [offline readWithQuery:query orError:&storageError];
+        XCTAssertNil(storageError);
+        XCTAssertEqual(result.items.count, 2);
+        [offline upsertItems:@[@{ @"id": @"A", @"operationId":[NSNumber numberWithInt:operationId++]}] table:offline.errorTableName orError:&storageError];
+        done = YES;
+    }];
     
-    // delete 0 tokens, delete 1 errors, delete 1 pending op, delete 2 items
-    runTest(@"test_id2", 4, 4);
+    // at this point we have 1 deltaToken, 2 todo items, 1 operation, and 1 operation error
+    
     XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
     done = NO;
+    [offline resetCounts];
+    [todoTable forcePurgeWithCompletion:^(NSError *error) {
+        NSError *storageError;
+        XCTAssertNil(error, @"Unexpected error: %@", error.description);
+        
+        XCTAssertEqual(offline.deleteCalls, 4);
+        XCTAssertEqual(offline.deletedItems, 5);
+        XCTAssertEqual(filteredClient.syncContext.pendingOperationsCount, 0);
+        
+        // Verify item is missing as well
+        MSSyncContextReadResult *emptyResult = [offline readWithQuery:query orError:&storageError];
+        XCTAssertNil(storageError);
+        XCTAssertEqual(emptyResult.items.count, 0);
+        
+        NSDictionary *token = [offline readTable:offline.configTableName withItemId:tokenId orError:&storageError];
+        XCTAssertNil(token);
+        done = YES;
+    }];
     
-    // delete 1 errors, delete 1 pending op, delete 2 items
-    runTest(nil, 3, 4);
-    XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
-    done = NO;
-  
-    // delete 1 tokens, delete 1 errors, delete 1 pending op, delete 2 items
-    runTest(@"test_id", 4, 5);
     XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
 }
 
@@ -1601,23 +1586,11 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
     
     [todoTable insert:@{ @"name": @"test one"} completion:^(NSDictionary *item, NSError *error) {
-        [todoTable purgeWithQuery:query queryId:nil force:NO completion:^(NSError *error) {
+        [todoTable purgeWithQuery:query completion:^(NSError *error) {
             XCTAssertNotNil(error);
             XCTAssertEqual(error.code, MSPurgeAbortedPendingChanges);
             XCTAssertEqual(offline.deleteCalls, 0);
             XCTAssertEqual(client.syncContext.pendingOperationsCount, 1);
-            
-            done = YES;
-        }];
-        
-        XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
-        done = NO;
-        [offline resetCounts];
-        // now try with forcing the purge
-        [todoTable purgeWithQuery:query queryId:nil force:YES completion:^(NSError *error) {
-            XCTAssertNil(error);
-            XCTAssertEqual(offline.deleteCalls, 0);
-            XCTAssertEqual(client.syncContext.pendingOperationsCount, 0);
             
             done = YES;
         }];

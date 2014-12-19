@@ -423,41 +423,57 @@ static NSOperationQueue *pushQueue_;
 /// In order to purge data from the local store, purge first checks if there are any pending operations for
 /// the specific table on the query. If there are, no purge is performed and an error returned to the user.
 /// Otherwise clear the local table of all macthing records
-- (void) purgeWithQuery:(MSQuery *)query queryId:(NSString *)queryId force:(BOOL)force completion:(MSSyncBlock)completion
+- (void) purgeWithQuery:(MSQuery *)query completion:(MSSyncBlock)completion
+{
+    // purge needs exclusive access to the storage layer
+    dispatch_async(writeOperationQueue, ^{
+        // Check if our table is dirty, if so, cancel the purge action
+        NSArray *tableOps = [self.operationQueue getOperationsForTable:query.syncTable.name item:nil];
+        
+        NSError *error;
+        if (tableOps.count > 0) {
+            error = [self errorWithDescription:@"The table cannot be purged because it has pending operations"
+                                  andErrorCode:MSPurgeAbortedPendingChanges];
+        } else {
+            // We can safely delete all items on this table (no pending operations)
+            [self.dataSource deleteUsingQuery:query orError:&error];
+        }
+        
+        if (completion) {
+            [self.callbackQueue addOperationWithBlock:^{
+                completion(error);
+            }];
+        }
+    });
+}
+
+/// Purges all data, pending operations, operation errors, and metadata for the
+/// MSSyncTable from the local store.
+-(void) forcePurgeWithTable:(MSSyncTable *)syncTable completion:(MSSyncBlock)completion
 {
     // purge needs exclusive access to the storage layer
     dispatch_async(writeOperationQueue, ^{
         NSError *error;
         
-        // purge the queryId, if specified
-        if (queryId) {
-            NSPredicate *predicate = [NSPredicate predicateWithFormat:@"table == %@ && key == %@ && keyType == %ld", query.syncTable.name, queryId, MSConfigKeyDeltaToken];
-            MSSyncTable *configTable = [[MSSyncTable alloc] initWithName:self.dataSource.configTableName client:query.syncTable.client];
+        // Check if our table is dirty
+        NSArray *tableOps = [self.operationQueue getOperationsForTable:syncTable.name item:nil];
+        
+        // delete operations one-by-one, which will delete any errors
+        for (int i = 0; i < tableOps.count; i++) {
+            [self.operationQueue removeOperation:tableOps[i] orError:&error];
+        }
+        
+        // purge the queryIds for this table
+        if (!error) {
+            NSPredicate *predicate = [NSPredicate predicateWithFormat:@"table == %@ && keyType == %ld", syncTable.name, MSConfigKeyDeltaToken];
+            MSSyncTable *configTable = [[MSSyncTable alloc] initWithName:self.dataSource.configTableName client:syncTable.client];
             MSQuery *query = [[MSQuery alloc] initWithSyncTable:configTable predicate:predicate];
             [self.dataSource deleteUsingQuery:query orError:&error];
         }
         
         if (!error) {
-            // Check if our table is dirty
-            NSArray *tableOps = [self.operationQueue getOperationsForTable:query.syncTable.name item:nil];
-            
-            if (tableOps.count > 0) {
-                if (query.predicate || !force) {
-                    error = [self errorWithDescription:@"The table cannot be purged because it has pending operations"
-                                          andErrorCode:MSPurgeAbortedPendingChanges];
-                }
-                
-                if (!error) {
-                    // delete operations one-by-one, which will delete any errors
-                    for (int i = 0; i < tableOps.count; i++) {
-                        [self.operationQueue removeOperation:tableOps[i] orError:&error];
-                    }
-                }
-            }
-        }
-        
-        if (!error) {
             // We can safely delete all items on this table (no pending operations)
+            MSQuery *query = [[MSQuery alloc] initWithSyncTable:syncTable];
             [self.dataSource deleteUsingQuery:query orError:&error];
         }
         
