@@ -12,6 +12,7 @@
 #import "MSQueryInternal.h"
 #import "MSQueuePushOperation.h"
 #import "MSQueuePullOperation.h"
+#import "MSQueuePurgeOperation.h"
 #import "MSNaiveISODateFormatter.h"
 #import "MSDateOffset.h"
 #import "MSTableConfigValue.h"
@@ -425,64 +426,27 @@ static NSOperationQueue *pushQueue_;
 /// Otherwise clear the local table of all macthing records
 - (void) purgeWithQuery:(MSQuery *)query completion:(MSSyncBlock)completion
 {
-    // purge needs exclusive access to the storage layer
-    dispatch_async(writeOperationQueue, ^{
-        // Check if our table is dirty, if so, cancel the purge action
-        NSArray *tableOps = [self.operationQueue getOperationsForTable:query.syncTable.name item:nil];
-        
-        NSError *error;
-        if (tableOps.count > 0) {
-            error = [self errorWithDescription:@"The table cannot be purged because it has pending operations"
-                                  andErrorCode:MSPurgeAbortedPendingChanges];
-        } else {
-            // We can safely delete all items on this table (no pending operations)
-            [self.dataSource deleteUsingQuery:query orError:&error];
-        }
-        
-        if (completion) {
-            [self.callbackQueue addOperationWithBlock:^{
-                completion(error);
-            }];
-        }
-    });
+    MSQueuePurgeOperation *purge = [[MSQueuePurgeOperation alloc] initPurgeWithSyncContext:self
+                                                                                     query:query
+                                                                                     force:NO
+                                                                             dispatchQueue:writeOperationQueue
+                                                                             callbackQueue:self.callbackQueue
+                                                                                completion:completion];
+    [pushQueue_ addOperation:purge];
 }
 
 /// Purges all data, pending operations, operation errors, and metadata for the
 /// MSSyncTable from the local store.
 -(void) forcePurgeWithTable:(MSSyncTable *)syncTable completion:(MSSyncBlock)completion
 {
-    // purge needs exclusive access to the storage layer
-    dispatch_async(writeOperationQueue, ^{
-        NSError *error;
-        
-        // Check if our table is dirty
-        NSArray *tableOps = [self.operationQueue getOperationsForTable:syncTable.name item:nil];
-        
-        // delete operations one-by-one, which will delete any errors
-        for (int i = 0; i < tableOps.count; i++) {
-            [self.operationQueue removeOperation:tableOps[i] orError:&error];
-        }
-        
-        // purge the queryIds for this table
-        if (!error) {
-            NSPredicate *predicate = [NSPredicate predicateWithFormat:@"table == %@ && keyType == %ld", syncTable.name, MSConfigKeyDeltaToken];
-            MSSyncTable *configTable = [[MSSyncTable alloc] initWithName:self.dataSource.configTableName client:syncTable.client];
-            MSQuery *query = [[MSQuery alloc] initWithSyncTable:configTable predicate:predicate];
-            [self.dataSource deleteUsingQuery:query orError:&error];
-        }
-        
-        if (!error) {
-            // We can safely delete all items on this table (no pending operations)
-            MSQuery *query = [[MSQuery alloc] initWithSyncTable:syncTable];
-            [self.dataSource deleteUsingQuery:query orError:&error];
-        }
-        
-        if (completion) {
-            [self.callbackQueue addOperationWithBlock:^{
-                completion(error);
-            }];
-        }
-    });
+    MSQuery *query = [[MSQuery alloc] initWithSyncTable:syncTable];
+    MSQueuePurgeOperation *purge = [[MSQueuePurgeOperation alloc] initPurgeWithSyncContext:self
+                                                                                     query:query
+                                                                                     force:YES
+                                                                             dispatchQueue:writeOperationQueue
+                                                                             callbackQueue:self.callbackQueue
+                                                                                completion:completion];
+    [pushQueue_ addOperation:purge];
 }
 
 + (BOOL) dictionary:(NSDictionary *)dictionary containsCaseInsensitiveKey:(NSString *)key

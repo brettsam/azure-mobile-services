@@ -1520,6 +1520,45 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     XCTAssertTrue([self waitForTest:30.0], @"Test timed out.");
 }
 
+-(void) testForcePurgeWithLockedOperation
+{
+    MSTestFilter *testFilter = [[MSTestFilter alloc] init];
+    testFilter.ignoreNextFilter = YES;
+    testFilter.errorToUse = [NSError errorWithDomain:MSErrorDomain code:-1 userInfo:nil];
+    
+    __block NSError *storageError;
+    MSClient *filteredClient = [client clientWithFilter:testFilter];
+    MSSyncTable *todoTable = [filteredClient syncTableWithName:TodoTableNoVersion];
+    MSQuery *query = [[MSQuery alloc] initWithSyncTable:todoTable];
+    
+    [todoTable insert:@{ @"id": @"B"} completion:^(NSDictionary *item, NSError *error) {
+        MSSyncContextReadResult *result = [offline readWithQuery:query orError:&storageError];
+        XCTAssertNil(storageError);
+        XCTAssertEqual(result.items.count, 1);
+        done = YES;
+    }];
+    
+    // at this point we have 1 deltaToken, 2 todo items, 1 operation, and 1 operation error
+    XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
+    done = NO;
+   
+    // get the operation and lock it
+    NSArray *operations = [filteredClient.syncContext.operationQueue getOperationsForTable:todoTable.name item:nil];
+    [filteredClient.syncContext.operationQueue lockOperation:operations[0]];
+    
+    [offline resetCounts];
+    [todoTable forcePurgeWithCompletion:^(NSError *error) {
+        XCTAssertNotNil(error);
+        XCTAssertEqual(error.code, MSPurgeAbortedPendingChanges);
+        XCTAssertEqual(offline.deleteCalls, 0);
+        XCTAssertEqual(offline.deletedItems, 0);
+        XCTAssertEqual(filteredClient.syncContext.pendingOperationsCount, 1);
+        done = YES;
+    }];
+    
+    XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
+}
+
 -(void) testForcePurgeSuccess
 {
     MSTestFilter *testFilter = [[MSTestFilter alloc] init];
@@ -1575,6 +1614,7 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     
     XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
 }
+
 
 -(void) testPurgeWithPendingOperationsFails
 {
