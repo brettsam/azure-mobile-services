@@ -1558,7 +1558,6 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     
     XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
 }
-
 -(void) testForcePurgeSuccess
 {
     MSTestFilter *testFilter = [[MSTestFilter alloc] init];
@@ -1614,7 +1613,6 @@ static NSString *const AllColumnTypesTable = @"ColumnTypes";
     
     XCTAssertTrue([self waitForTest:0.1], @"Test timed out.");
 }
-
 
 -(void) testPurgeWithPendingOperationsFails
 {
