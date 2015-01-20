@@ -38,6 +38,16 @@
 
 @implementation MSQueuePullOperation
 
+// Initializes a Pull operation with:
+//  syncContext:    The syncContext on which to perform the pull
+//  query:          The query to use for the pull.
+//  queryId:        The id to use for identifying the deltaToken in the MS_Config table for
+//                  incremental pull. If nil, indicates that this should not be an incremental pull
+//  maxRecords:     The total number of records to pull, possibly with paging. The value of
+//                  query.fetchLimit is treated as a pageSize and maxRecords is the total number of records to pull.
+//  dispatchQueue:  The queue to use for data operations
+//  callbackQueue:  The queue to use for callbacks
+//  completion:     The block to call upon completion of the pull operations
 - (id) initWithSyncContext:(MSSyncContext *)syncContext
                      query:(MSQuery *)query
                    queryId:(NSString *)queryId
@@ -221,7 +231,7 @@
             }
             else {
                 self.query.fetchOffset = self.originalFetchOffset + self.recordsProcessed;
-                self.query.fetchLimit = self.recordsRemaining >= self.originalFetchLimit ? self.originalFetchLimit : self.recordsRemaining % self.originalFetchLimit;
+                self.query.fetchLimit = self.recordsRemaining >= self.originalFetchLimit ? self.originalFetchLimit : self.recordsRemaining;
             }
             
             // If we've gotten all of our results we can stop processing

@@ -21,7 +21,7 @@
     dispatch_queue_t writeOperationQueue;
 }
 
-NSInteger const defaultMaxRecords = 50;
+NSInteger const defaultFetchLimit = 50;
 
 static NSOperationQueue *pushQueue_;
 
@@ -383,8 +383,8 @@ static NSOperationQueue *pushQueue_;
     
     // For a Pull we treat fetchLimit as the total records we should pull by paging. If there is no fetchLimit, we pull everything.
     // We enforce a page size of 50.
-    NSInteger maxRecords = queryCopy.fetchLimit >= 0 ? queryCopy.fetchLimit : NSIntegerMax;
-    queryCopy.fetchLimit = MIN(maxRecords, defaultMaxRecords);
+    NSInteger maxRecords = query.fetchLimit >= 0 ? query.fetchLimit : NSIntegerMax;
+    queryCopy.fetchLimit = MIN(maxRecords, defaultFetchLimit);
     
     // Begin the actual pull request
     [self pullWithQueryInternal:queryCopy queryId:queryId maxRecords:maxRecords completion:completion];
