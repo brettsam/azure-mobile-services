@@ -24,7 +24,11 @@
 @property (nonatomic, copy)     MSSyncBlock completion;
 @property (nonatomic, strong)   MSQuery* query;
 @property (nonatomic, strong)   NSString *queryId;
+@property (nonatomic)           NSInteger maxRecords;
 @property (nonatomic)           NSInteger recordsProcessed;
+@property (nonatomic)           NSInteger recordsRemaining;
+@property (nonatomic)           NSInteger originalFetchLimit;
+@property (nonatomic)           NSInteger originalFetchOffset;
 @property (nonatomic, strong)   NSDate *maxDate;
 @property (nonatomic, strong)   NSDate *deltaToken;
 @property (nonatomic, strong)   NSPredicate *originalPredicate;
@@ -37,6 +41,7 @@
 - (id) initWithSyncContext:(MSSyncContext *)syncContext
                      query:(MSQuery *)query
                    queryId:(NSString *)queryId
+                maxRecords:(NSInteger)maxRecords
              dispatchQueue:(dispatch_queue_t)dispatchQueue
              callbackQueue:(NSOperationQueue *)callbackQueue
                 completion:(MSSyncBlock)completion
@@ -46,13 +51,20 @@
         _syncContext = syncContext;
         _query = query;
         _queryId = queryId;
+        _maxRecords = maxRecords;
         _dispatchQueue = dispatchQueue;
         _callbackQueue = callbackQueue;
         _completion = [completion copy];
         _recordsProcessed = 0;
+        _recordsRemaining = maxRecords;
+        _originalFetchLimit = query.fetchLimit;
+        _originalFetchOffset = MAX(0, query.fetchOffset);
         _maxDate = [NSDate dateWithTimeIntervalSince1970:0.0];
         _deltaToken = nil;
         _originalPredicate = self.query.predicate;
+        
+        // changes fetchOffset from -1 to 0, if needed, so we always use skip(0)
+        self.query.fetchOffset = self.originalFetchOffset;
     }
     return self;
 }
@@ -186,6 +198,7 @@
             }
             
             self.recordsProcessed += result.items.count;
+            self.recordsRemaining -= result.items.count;
             
             if (self.queryId) {
                 if (!self.deltaToken || [self.deltaToken compare:self.maxDate] == NSOrderedAscending) {
@@ -207,11 +220,23 @@
                 }
             }
             else {
-                self.query.fetchOffset = self.recordsProcessed;
+                self.query.fetchOffset = self.originalFetchOffset + self.recordsProcessed;
+                self.query.fetchLimit = self.recordsRemaining >= self.originalFetchLimit ? self.originalFetchLimit : self.recordsRemaining % self.originalFetchLimit;
             }
             
-            // try to Pull again with the updated offset or query
-            [self processPullOperation];
+            // If we've gotten all of our results we can stop processing
+            if (self.recordsRemaining <= 0) {
+                if (self.completion) {
+                    [self.callbackQueue addOperationWithBlock:^{
+                        self.completion(error);
+                    }];
+                }
+                [self completeOperation];
+            }
+            else {
+                // try to Pull again with the updated query
+                [self processPullOperation];
+            }
         });
     }];
 }
@@ -260,7 +285,7 @@
         }
     }
     
-    self.query.fetchOffset = -1;
+    self.query.fetchOffset = 0;
     
     if (self.deltaToken) {
         MSDateOffset *offset = [[MSDateOffset alloc]initWithDate:self.deltaToken];
